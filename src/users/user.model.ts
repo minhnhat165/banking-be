@@ -21,8 +21,8 @@ export class User extends Model {
   @Column
   password: string;
 
-  @Column
-  status: string;
+  @Column({ defaultValue: 0 })
+  status: number;
 
   @ForeignKey(() => Role)
   @Column({ field: 'role_id' })

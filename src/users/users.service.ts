@@ -1,4 +1,9 @@
-import { ConflictException, Inject, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { User } from './user.model';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
@@ -20,16 +25,20 @@ export class UsersService {
     return this.userModel.findByPk(id);
   }
 
-  async findByEmail(email: string): Promise<User> {
-    return this.userModel.findOne({
+  async findByEmail(email: string, allowDuplicate = false): Promise<User> {
+    const user = await this.userModel.findOne({
       where: {
         email,
       },
     });
+    if (!user && !allowDuplicate) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
   }
 
   async create(user: CreateUserDto): Promise<User> {
-    const isExist = await this.findByEmail(user.email);
+    const isExist = await this.findByEmail(user.email, true);
     if (isExist) {
       throw new ConflictException('Email already exists');
     }
@@ -46,5 +55,24 @@ export class UsersService {
     return newUser.save();
   }
 
-  // Implement other CRUD operations as needed
+  async update(id: number, user: CreateUserDto): Promise<User> {
+    const updateUser = await this.userModel.findByPk(id);
+    const keys = Object.keys(user);
+    keys.forEach((key) => {
+      updateUser[key] = user[key];
+    });
+    return updateUser.save();
+  }
+
+  async updateStatus(id: number, status: number): Promise<User> {
+    const updateUser = await this.userModel.findByPk(id);
+    updateUser.status = status;
+    return updateUser.save();
+  }
+
+  async updatePassword(id: number, password: string): Promise<User> {
+    const updateUser = await this.userModel.findByPk(id);
+    updateUser.password = await bcrypt.hash(password, 10);
+    return updateUser.save();
+  }
 }

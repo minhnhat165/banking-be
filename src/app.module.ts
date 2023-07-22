@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './database/database.module';
 import { Module } from '@nestjs/common';
 import { UsersModule } from './users/users.module';
+import { MailerModule } from './mailer/mailer.module';
 import configuration from './common/constant/env';
 
 @Module({
@@ -15,6 +16,7 @@ import configuration from './common/constant/env';
     ConfigModule.forRoot({
       load: [configuration],
     }),
+    MailerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

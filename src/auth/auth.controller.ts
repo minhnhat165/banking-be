@@ -25,10 +25,7 @@ export class AuthController {
   }
 
   @Post('login')
-  async login(
-    @Request() req,
-    @Body() body,
-  ): Promise<
+  async login(@Body() body): Promise<
     Response<{
       accessToken: string;
     }>
@@ -52,10 +49,35 @@ export class AuthController {
     @Request() req,
   ): Promise<Response<Omit<CreateUserDto, 'password'>>> {
     const user = await this.authService.getProfile(req.user.id);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, ...re } = user.dataValues;
     return {
       message: 'success',
       data: re,
+    };
+  }
+
+  @Post('verify-email')
+  async verifyEmail(@Body() body) {
+    await this.authService.verifyEmail(body.token);
+    return {
+      message: 'User has been verified successfully',
+    };
+  }
+
+  @Post('forgot-password')
+  async forgotPassword(@Body() body) {
+    await this.authService.forgotPassword(body.email);
+    return {
+      message: 'Please check your email to reset password',
+    };
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() body) {
+    await this.authService.resetPassword(body.token, body.password);
+    return {
+      message: 'Password has been reset successfully',
     };
   }
 }
