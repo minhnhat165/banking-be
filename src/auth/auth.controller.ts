@@ -6,11 +6,13 @@ import {
   Get,
   Body,
   UnauthorizedException,
+  Patch,
 } from '@nestjs/common';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import { Response } from 'src/common/types/responses';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
+import { UpdateUserDto } from 'src/users/dto/update-user.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -32,7 +34,9 @@ export class AuthController {
   > {
     const user = await this.authService.validateUser(body.email, body.password);
     if (!user) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException(
+        'Email or password is incorrect, please try again',
+      );
     }
     const { access_token } = await this.authService.login(user);
     return {
@@ -78,6 +82,21 @@ export class AuthController {
     await this.authService.resetPassword(body.token, body.password);
     return {
       message: 'Password has been reset successfully',
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('profile')
+  async updateProfile(@Request() req, @Body() updateUserDto: UpdateUserDto) {
+    const user = await this.authService.updateProfile(
+      req.user.id,
+      updateUserDto,
+    );
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password, ...re } = user.dataValues;
+    return {
+      message: 'success',
+      data: re,
     };
   }
 }

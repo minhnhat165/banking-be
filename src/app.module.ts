@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/database.module';
 import { Module } from '@nestjs/common';
 import { UsersModule } from './users/users.module';
 import { MailerModule } from './mailer/mailer.module';
+import { ProductsModule } from './products/products.module';
 import configuration from './common/constant/env';
 
 @Module({
@@ -17,6 +18,7 @@ import configuration from './common/constant/env';
       load: [configuration],
     }),
     MailerModule,
+    ProductsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

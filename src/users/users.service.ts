@@ -7,6 +7,10 @@ import {
 import { User } from './user.model';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
+import { generateAvatar } from 'src/utils/generate-avatar';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { Pagination } from 'src/common/dto/pagination';
+import { PaginationParams } from 'src/common/dto/paginationParams';
 @Injectable()
 export class UsersService {
   constructor(
@@ -14,11 +18,22 @@ export class UsersService {
     private readonly userModel: typeof User,
   ) {}
 
-  async findAll(): Promise<User[]> {
+  async findAll({
+    page = 0,
+    limit = 10,
+  }: PaginationParams): Promise<Pagination<User>> {
     //find all users with role
-    return this.userModel.findAll({
+    const { rows, count } = await this.userModel.findAndCountAll({
       include: ['role'],
+      limit,
+      offset: page * limit,
     });
+    return {
+      items: rows,
+      total: count,
+      currentPage: page,
+      totalPages: Math.ceil(count / limit),
+    };
   }
 
   async findById(id: number): Promise<User> {
@@ -43,7 +58,6 @@ export class UsersService {
       throw new ConflictException('Email already exists');
     }
     const newUser = new User();
-    newUser.username = user.username;
     newUser.email = user.email;
     newUser.password = await bcrypt.hash(user.password, 10);
     newUser.firstName = user.firstName;
@@ -52,10 +66,11 @@ export class UsersService {
     newUser.phone = user.phone;
     newUser.address = user.address;
     newUser.roleId = user.roleId;
+    newUser.avatar = generateAvatar(user.firstName + ' ' + user.lastName);
     return newUser.save();
   }
 
-  async update(id: number, user: CreateUserDto): Promise<User> {
+  async update(id: number, user: UpdateUserDto): Promise<User> {
     const updateUser = await this.userModel.findByPk(id);
     const keys = Object.keys(user);
     keys.forEach((key) => {

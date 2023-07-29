@@ -8,6 +8,8 @@ import { JwtService } from '@nestjs/jwt';
 import { LoginUserDto } from './dto/login-user.dto';
 import { MailerService } from 'src/mailer/mailer.service';
 import { USER } from 'src/common/constant/user';
+import { UpdateUserDto } from 'src/users/dto/update-user.dto';
+import { User } from 'src/users/user.model';
 import { UsersService } from '../users/users.service';
 
 type TokenType = 'verify-email' | 'reset-password';
@@ -50,6 +52,7 @@ export class AuthService {
     };
   }
   async register(user: CreateUserDto) {
+    user.roleId = USER.ROLE.USER;
     const newUser = await this.usersService.create(user);
     const payload: TokenPayload = { email: newUser.email, id: newUser.id };
     const token = this.jwtService.sign(payload, {
@@ -62,7 +65,7 @@ export class AuthService {
       type: 'verify-email',
     };
 
-    const url = `${CLIENT.URL}/verify-email?token=${token}`;
+    const url = `${CLIENT.URL}/auth/verify-email?token=${token}`;
 
     const text =
       `Dear ${newUser.firstName} ${newUser.lastName},\n\n` +
@@ -121,7 +124,7 @@ export class AuthService {
       secret: JWT.RESET_PASSWORD_SECRET,
       expiresIn: JWT.RESET_PASSWORD_EXPIRES_IN,
     });
-    const url = `${CLIENT.URL}/reset-password?token=${token}`;
+    const url = `${CLIENT.URL}/auth/reset-password?token=${token}`;
     const text =
       `Dear ${user.firstName} ${user.lastName},\n\n` +
       `Please click on the following link ${url} to reset your password.\n\n` +
@@ -167,5 +170,20 @@ export class AuthService {
     await this.usersService.updatePassword(payload.id, password);
     // remove token from tokens_tmp
     delete tokens_tmp[payload.email];
+  }
+
+  async changePassword(id: number, oldPassword: string, newPassword: string) {
+    const user = await this.usersService.findById(id);
+    if (!bcrypt.compareSync(oldPassword, user.password)) {
+      throw new HttpException(
+        'Old password is incorrect',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+    await this.usersService.updatePassword(id, newPassword);
+  }
+  async updateProfile(id: number, data: UpdateUserDto): Promise<User> {
+    const user = await this.usersService.update(id, data);
+    return user;
   }
 }
