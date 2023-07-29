@@ -1,4 +1,4 @@
-import { Product } from './products.model';
+import { Product } from './product.model';
 import { Provider } from '@nestjs/common';
 
 export const productsProviders: Provider[] = [

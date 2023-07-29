@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { Product } from './products.model';
+import { Product } from './product.model';
 import { CreateProductDto } from './dto/create-product.dto';
 import { User } from 'src/users/user.model';
 

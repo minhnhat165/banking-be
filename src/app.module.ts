@@ -3,11 +3,14 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './database/database.module';
-import { Module } from '@nestjs/common';
-import { UsersModule } from './users/users.module';
 import { MailerModule } from './mailer/mailer.module';
+import { Module } from '@nestjs/common';
 import { ProductsModule } from './products/products.module';
+import { RolloversModule } from './rollovers/rollovers.module';
 import { TermsModule } from './terms/terms.module';
+import { UsersModule } from './users/users.module';
+import { InterestPaymentsModule } from './interest-payments/interest-payments.module';
+import { CustomersModule } from './customers/customers.module';
 import configuration from './common/constant/env';
 
 @Module({
@@ -21,6 +24,9 @@ import configuration from './common/constant/env';
     MailerModule,
     ProductsModule,
     TermsModule,
+    RolloversModule,
+    InterestPaymentsModule,
+    CustomersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

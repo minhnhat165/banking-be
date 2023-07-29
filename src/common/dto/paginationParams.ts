@@ -1,7 +1,7 @@
 import { IsNumber, IsOptional, Min } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
-export class PaginationParams {
+export class PaginationParams extends Object {
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
   @Type(() => Number)

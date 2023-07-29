@@ -14,7 +14,7 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { Response } from 'src/common/types/responses';
-import { Product } from './products.model';
+import { Product } from './product.model';
 
 @Controller('products')
 export class ProductsController {

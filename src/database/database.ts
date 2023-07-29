@@ -1,6 +1,9 @@
+import { Customer } from 'src/customers/customer.model';
 import { DB } from 'src/common/constant/env';
-import { Product } from 'src/products/products.model';
+import { InterestPayment } from 'src/interest-payments/interest-payment.model';
+import { Product } from 'src/products/product.model';
 import { Role } from 'src/roles/role.model';
+import { Rollover } from 'src/rollovers/rollover.model';
 import { Sequelize } from 'sequelize-typescript';
 import { Term } from 'src/terms/terms.model';
 import { User } from 'src/users/user.model';
@@ -29,7 +32,15 @@ export const databaseProviders = [
        * You can add the models to
        * Sequelize later on.
        */
-      sequelize.addModels([User, Role, Product, Term]);
+      sequelize.addModels([
+        User,
+        Role,
+        Product,
+        Term,
+        Rollover,
+        InterestPayment,
+        Customer,
+      ]);
 
       // await sequelize.sync();
       return sequelize;
