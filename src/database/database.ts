@@ -2,6 +2,7 @@ import { DB } from 'src/common/constant/env';
 import { Product } from 'src/products/products.model';
 import { Role } from 'src/roles/role.model';
 import { Sequelize } from 'sequelize-typescript';
+import { Term } from 'src/terms/terms.model';
 import { User } from 'src/users/user.model';
 
 export const databaseProviders = [
@@ -28,7 +29,7 @@ export const databaseProviders = [
        * You can add the models to
        * Sequelize later on.
        */
-      sequelize.addModels([User, Role, Product]);
+      sequelize.addModels([User, Role, Product, Term]);
 
       // await sequelize.sync();
       return sequelize;

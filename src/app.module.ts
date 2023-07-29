@@ -7,6 +7,7 @@ import { Module } from '@nestjs/common';
 import { UsersModule } from './users/users.module';
 import { MailerModule } from './mailer/mailer.module';
 import { ProductsModule } from './products/products.module';
+import { TermsModule } from './terms/terms.module';
 import configuration from './common/constant/env';
 
 @Module({
@@ -19,6 +20,7 @@ import configuration from './common/constant/env';
     }),
     MailerModule,
     ProductsModule,
+    TermsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
