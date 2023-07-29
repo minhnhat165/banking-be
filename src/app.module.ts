@@ -11,6 +11,7 @@ import { TermsModule } from './terms/terms.module';
 import { UsersModule } from './users/users.module';
 import { InterestPaymentsModule } from './interest-payments/interest-payments.module';
 import { CustomersModule } from './customers/customers.module';
+import { InterestRatesModule } from './interest-rates/interest-rates.module';
 import configuration from './common/constant/env';
 
 @Module({
@@ -27,6 +28,7 @@ import configuration from './common/constant/env';
     RolloversModule,
     InterestPaymentsModule,
     CustomersModule,
+    InterestRatesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

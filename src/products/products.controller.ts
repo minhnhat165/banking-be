@@ -6,15 +6,14 @@ import {
   Param,
   Patch,
   Post,
-  Put,
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { ProductsService } from './products.service';
-import { CreateProductDto } from './dto/create-product.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { Response } from 'src/common/types/responses';
+import { CreateProductDto } from './dto/create-product.dto';
 import { Product } from './product.model';
+import { ProductsService } from './products.service';
 
 @Controller('products')
 export class ProductsController {
