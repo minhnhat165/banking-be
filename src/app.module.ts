@@ -12,6 +12,7 @@ import { UsersModule } from './users/users.module';
 import { InterestPaymentsModule } from './interest-payments/interest-payments.module';
 import { CustomersModule } from './customers/customers.module';
 import { InterestRatesModule } from './interest-rates/interest-rates.module';
+import { AccountsModule } from './accounts/accounts.module';
 import configuration from './common/constant/env';
 
 @Module({
@@ -29,6 +30,7 @@ import configuration from './common/constant/env';
     InterestPaymentsModule,
     CustomersModule,
     InterestRatesModule,
+    AccountsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

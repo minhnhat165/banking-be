@@ -1,3 +1,4 @@
+import { Account } from 'src/accounts/account.model';
 import { Customer } from 'src/customers/customer.model';
 import { DB } from 'src/common/constant/env';
 import { InterestPayment } from 'src/interest-payments/interest-payment.model';
@@ -42,6 +43,7 @@ export const databaseProviders = [
         InterestPayment,
         Customer,
         InterestRate,
+        Account,
       ]);
 
       // await sequelize.sync();
