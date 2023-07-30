@@ -13,6 +13,7 @@ import { InterestPaymentsModule } from './interest-payments/interest-payments.mo
 import { CustomersModule } from './customers/customers.module';
 import { InterestRatesModule } from './interest-rates/interest-rates.module';
 import { AccountsModule } from './accounts/accounts.module';
+import { TransactionsModule } from './transactions/transactions.module';
 import configuration from './common/constant/env';
 
 @Module({
@@ -31,6 +32,7 @@ import configuration from './common/constant/env';
     CustomersModule,
     InterestRatesModule,
     AccountsModule,
+    TransactionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

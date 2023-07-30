@@ -8,6 +8,7 @@ import { Role } from 'src/roles/role.model';
 import { Rollover } from 'src/rollovers/rollover.model';
 import { Sequelize } from 'sequelize-typescript';
 import { Term } from 'src/terms/terms.model';
+import { Transaction } from 'src/transactions/transaction.model';
 import { User } from 'src/users/user.model';
 
 export const databaseProviders = [
@@ -44,6 +45,7 @@ export const databaseProviders = [
         Customer,
         InterestRate,
         Account,
+        Transaction,
       ]);
 
       // await sequelize.sync();

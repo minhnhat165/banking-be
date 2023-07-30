@@ -45,7 +45,7 @@ export class AccountsController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Patch()
+  @Patch('activate')
   async activate(@Body() activeAccountDto: ActivateAccountDto) {
     const account = await this.accountsService.activate(activeAccountDto);
     return {
@@ -55,7 +55,7 @@ export class AccountsController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Patch()
+  @Patch('change-pin')
   async changePin(@Body() activeAccountDto: ActivateAccountDto) {
     const account = await this.accountsService.changePin(activeAccountDto);
     return {
@@ -83,6 +83,16 @@ export class AccountsController {
     const account = await this.accountsService.delete(id);
     return {
       message: 'Account has been deleted successfully',
+      data: account,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':accountNumber/reset-pin')
+  async resetPin(@Param('accountNumber') accountNumber: string) {
+    const account = await this.accountsService.resetPin(accountNumber);
+    return {
+      message: 'Pin has been reset successfully',
       data: account,
     };
   }
