@@ -1,0 +1,6 @@
+export class CreateTransactionDto {
+  readonly accountId: number;
+  readonly amount: number;
+  readonly type: number;
+  readonly description: string;
+}

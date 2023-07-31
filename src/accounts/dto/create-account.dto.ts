@@ -1,7 +1,7 @@
 import { CreateCustomerDto } from 'src/customers/dto/create-customer.dto';
 
 export class CreateAccountDto {
-  readonly balance: number;
+  readonly principal: number;
   readonly interestRateId: number;
   readonly paymentMethodId: number;
   readonly rolloverId: number;

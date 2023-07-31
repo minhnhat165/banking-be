@@ -24,6 +24,9 @@ export class Account extends Model {
   @Column
   balance: number;
 
+  @Column
+  principal: number;
+
   @Column({ defaultValue: 0 })
   status: number;
   @Column({ field: 'number' })

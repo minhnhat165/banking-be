@@ -6,16 +6,21 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
+import * as moment from 'moment';
+import { ACCOUNT } from 'src/common/constant/account';
 import { CLIENT } from 'src/common/constant/env';
+import { TRANSACTION } from 'src/common/constant/transaction';
 import { Pagination } from 'src/common/dto/pagination';
 import { PaginationParams } from 'src/common/dto/paginationParams';
 import { CustomersService } from 'src/customers/customers.service';
 import { MailerService } from 'src/mailer/mailer.service';
+import { TransactionsService } from 'src/transactions/transactions.service';
 import { Account } from './account.model';
 import { ActivateAccountDto } from './dto/activate-account.dto';
 import { CreateAccountDto } from './dto/create-account.dto';
-import * as bcrypt from 'bcrypt';
-import { ACCOUNT } from 'src/common/constant/account';
+import { TransactionDto } from './dto/transaction.dto';
+import { InterestRate } from 'src/interest-rates/interest-rate.model';
 
 @Injectable()
 export class AccountsService {
@@ -24,6 +29,7 @@ export class AccountsService {
     private readonly accountRepository: typeof Account,
     private readonly mailerService: MailerService,
     private readonly customerService: CustomersService,
+    private readonly transactionService: TransactionsService,
   ) {}
 
   async findAll(
@@ -34,9 +40,16 @@ export class AccountsService {
       offset: page * limit,
       limit,
       where: filter,
-      include: [{ all: true }],
+      include: [
+        { all: true },
+        {
+          model: InterestRate,
+          include: ['term', 'product'],
+        },
+      ],
       attributes: { exclude: ['pin'] },
     });
+    this.calPrepaidInterest(rows[0].id);
     return {
       items: rows,
       total: count,
@@ -47,7 +60,13 @@ export class AccountsService {
 
   async findOne(id: number): Promise<Account> {
     const account = await this.accountRepository.findByPk(id, {
-      include: [{ all: true }],
+      include: [
+        { all: true },
+        {
+          model: InterestRate,
+          include: ['term', 'product'],
+        },
+      ],
       attributes: { exclude: ['pin'] },
     });
     if (!account) {
@@ -79,7 +98,7 @@ export class AccountsService {
       throw new BadRequestException('Invalid customer');
     }
     newAccount.type = account.type;
-    newAccount.balance = account.balance;
+    newAccount.principal = account.principal;
     const pin = this.generateNumber(6);
     newAccount.pin = await bcrypt.hash(pin, 10);
     newAccount.number = await this.generateAccountNumber();
@@ -170,7 +189,21 @@ export class AccountsService {
     account.pin = await bcrypt.hash(activateAccountDto.newPin, 10);
     account.status = ACCOUNT.STATUS.ACTIVATED;
     account.activatedDate = new Date();
-    return await account.save();
+    const activatedAccount = await account.save();
+    await this.deposit({
+      accountId: activatedAccount.id,
+      amount: activatedAccount.principal,
+    });
+    if (
+      activatedAccount?.paymentMethodId ===
+      ACCOUNT.INTEREST_PAYMENT_METHOD.PREPAID
+    ) {
+      await this.paymentInterest({
+        accountId: activatedAccount.id,
+        amount: await this.calPrepaidInterest(activatedAccount.id),
+      });
+    }
+    return this.findOne(activatedAccount.id);
   }
 
   async changePin(changePinDto: ActivateAccountDto): Promise<Account> {
@@ -216,5 +249,67 @@ export class AccountsService {
       subject,
       html,
     });
+  }
+
+  async deposit(depositDto: TransactionDto): Promise<void> {
+    const account = await this.findOne(depositDto.accountId);
+    if (account.status !== ACCOUNT.STATUS.ACTIVATED) {
+      throw new BadRequestException('Account not activated');
+    }
+    if (account.type !== ACCOUNT.TYPE.DEPOSIT) {
+      throw new BadRequestException('Invalid account type');
+    }
+    account.balance += depositDto.amount;
+    await account.save();
+    await this.transactionService.create({
+      accountId: depositDto.accountId,
+      amount: depositDto.amount,
+      description: 'Deposit',
+      type: TRANSACTION.TYPE.DEPOSIT,
+    });
+  }
+
+  async paymentInterest(transaction: TransactionDto): Promise<void> {
+    const account = await this.findOne(transaction.accountId);
+    if (account.status !== ACCOUNT.STATUS.ACTIVATED) {
+      throw new BadRequestException('Account not activated');
+    }
+    if (account.type !== ACCOUNT.TYPE.DEPOSIT) {
+      throw new BadRequestException('Invalid account type');
+    }
+    account.balance += transaction.amount;
+    await account.save();
+    await this.transactionService.create({
+      accountId: transaction.accountId,
+      amount: transaction.amount,
+      description: 'Interest',
+      type: TRANSACTION.TYPE.INTEREST,
+    });
+  }
+
+  async calPrepaidInterest(accountId: number) {
+    const account = await this.findOne(accountId);
+    const months = account.interestRate.term.value;
+    const interestRate = account.interestRate.value;
+    const principal = account.principal;
+    const interest = (principal * interestRate * months) / (12 * 100);
+    return interest;
+  }
+
+  async calMonthInterest(accountId: number) {
+    const account = await this.findOne(accountId);
+    const interestRate = account.interestRate.value;
+    const balance = account.balance;
+    const interest = (balance * interestRate) / (12 * 100);
+    return interest;
+  }
+
+  async calEndOfTermInterest(accountId: number) {
+    const account = await this.findOne(accountId);
+    const months = account.interestRate.term.value;
+    const interestRate = account.interestRate.value;
+    const balance = account.balance;
+    const interest = (balance * interestRate * months) / (12 * 100);
+    return interest;
   }
 }

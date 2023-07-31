@@ -7,4 +7,10 @@ export const ACCOUNT = {
     CHECKING: 0,
     DEPOSIT: 1,
   },
+
+  INTEREST_PAYMENT_METHOD: {
+    REGULAR: 1,
+    END_OF_TERM: 2,
+    PREPAID: 3,
+  },
 };
