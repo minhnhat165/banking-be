@@ -1,3 +1,5 @@
+import 'reflect-metadata';
+
 import { IsNumber, IsOptional, Min } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 

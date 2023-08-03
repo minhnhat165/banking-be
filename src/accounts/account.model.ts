@@ -71,4 +71,9 @@ export class Account extends Model {
 
   @Column({ field: 'maturity_date' })
   maturityDate: Date;
+
+  @Column({
+    field: 'closed_date',
+  })
+  closedDate: Date;
 }

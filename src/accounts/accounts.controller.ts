@@ -17,6 +17,7 @@ import { Pagination } from 'src/common/dto/pagination';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { ActivateAccountDto } from './dto/activate-account.dto';
+import { SettlementAccountDto } from './dto/settlement-account.dto';
 
 @Controller('accounts')
 export class AccountsController {
@@ -63,11 +64,20 @@ export class AccountsController {
       data: account,
     };
   }
+  @UseGuards(JwtAuthGuard)
+  @Patch('settle')
+  async settle(@Body() settlementAccountDto: SettlementAccountDto) {
+    const account = await this.accountsService.settle(settlementAccountDto);
+    return {
+      message: 'Account has been settled successfully',
+      data: account,
+    };
+  }
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
   async update(
-    @Param() id: number,
+    @Param('id') id: number,
     @Body() updateAccountDto: Partial<CreateAccountDto>,
   ) {
     const account = await this.accountsService.update(id, updateAccountDto);
@@ -79,7 +89,7 @@ export class AccountsController {
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  async delete(@Param() id: number) {
+  async delete(@Param('id') id: number) {
     const account = await this.accountsService.delete(id);
     return {
       message: 'Account has been deleted successfully',

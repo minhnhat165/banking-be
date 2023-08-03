@@ -4,5 +4,6 @@ export const TRANSACTION = {
     WITHDRAW: 2,
     TRANSFER: 3,
     INTEREST: 4,
+    SETTLEMENT: 5,
   },
 };

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -14,13 +15,21 @@ import { Response } from 'src/common/types/responses';
 import { CreateProductDto } from './dto/create-product.dto';
 import { Product } from './product.model';
 import { ProductsService } from './products.service';
+import { PaginationParams } from 'src/common/dto/paginationParams';
+import { Pagination } from 'src/common/dto/pagination';
 
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
   @Get()
-  async findAll() {
-    return this.productsService.findAll();
+  async findAll(
+    @Query() paginationParams: PaginationParams,
+  ): Promise<Response<Pagination<Product>>> {
+    const data = await this.productsService.findAll(paginationParams);
+    return {
+      message: 'Products have been found successfully',
+      data: data,
+    };
   }
 
   @Get(':id')

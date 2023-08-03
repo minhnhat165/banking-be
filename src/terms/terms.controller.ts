@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -14,15 +15,22 @@ import { CreateTermDto } from './dto/create-term.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { Response } from 'src/common/types/responses';
 import { Term } from './terms.model';
+import { PaginationParams } from 'src/common/dto/paginationParams';
+import { Pagination } from 'src/common/dto/pagination';
 
 @Controller('terms')
 export class TermsController {
   constructor(private readonly termsService: TermsService) {}
   @Get()
-  async findAll() {
-    return this.termsService.findAll();
+  async findAll(
+    @Query() paginationParams: PaginationParams,
+  ): Promise<Response<Pagination<Term>>> {
+    const data = await this.termsService.findAll(paginationParams);
+    return {
+      message: 'Terms have been found successfully',
+      data: data,
+    };
   }
-
   @Get(':id')
   async findOne(id: number) {
     return this.termsService.findOne(id);

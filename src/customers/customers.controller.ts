@@ -28,6 +28,14 @@ export class CustomersController {
       data: data,
     };
   }
+  @Get('pin/:pin')
+  async findByPin(@Param('pin') pin: string): Promise<Response<Customer>> {
+    const data = await this.customersService.findOneByPin(pin);
+    return {
+      message: 'Customers have been found successfully',
+      data: data,
+    };
+  }
 
   @Post()
   async create(

@@ -38,8 +38,14 @@ export class Transaction extends Model {
   })
   transactionDate: Date;
 
+  @Column
+  balance: number;
+
+  @Column({ field: 'bnf_account_id' })
+  bnfAccountId: number;
+
   @Column({
     field: 'drcr_ind',
   })
-  drcrInd: string;
+  drcrInd: number;
 }

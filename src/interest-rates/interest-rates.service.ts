@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -12,6 +13,8 @@ import { Pagination } from 'src/common/dto/pagination';
 import { Product } from 'src/products/product.model';
 import { Term } from 'src/terms/terms.model';
 import { User } from 'src/users/user.model';
+import * as moment from 'moment';
+import { INTEREST_RATE } from 'src/common/constant/interest-rate';
 
 @Injectable()
 export class InterestRatesService {
@@ -28,6 +31,15 @@ export class InterestRatesService {
       offset: page * limit,
       limit,
       where: filter,
+      include: [
+        'term',
+        'product',
+        {
+          model: User,
+          attributes: ['id', 'firstName', 'lastName', 'email', 'avatar'],
+        },
+      ],
+      order: [['id', 'DESC']],
     });
     return {
       items: rows,
@@ -37,15 +49,12 @@ export class InterestRatesService {
     };
   }
 
-  async findOne(id: number): Promise<InterestRate> {
+  async findOne(id: number, includeAccount = false): Promise<InterestRate> {
     const existingInterestRate = await this.interestRateModel.findByPk(id, {
       include: [
-        {
-          model: Product,
-        },
-        {
-          model: Term,
-        },
+        'accounts',
+        'product',
+        'term',
         {
           model: User,
           attributes: ['id', 'firstName', 'lastName', 'email'],
@@ -58,6 +67,25 @@ export class InterestRatesService {
     return existingInterestRate;
   }
 
+  async findByProductId(productId: number): Promise<InterestRate[]> {
+    return this.interestRateModel.findAll({
+      where: { productId },
+      include: [
+        {
+          model: Product,
+        },
+        {
+          model: Term,
+        },
+        {
+          model: User,
+          attributes: ['id', 'firstName', 'lastName', 'email'],
+        },
+      ],
+      order: [['id', 'DESC']],
+    });
+  }
+
   async create(
     interestRate: CreateInterestRateDto,
     userId: number,
@@ -67,15 +95,17 @@ export class InterestRatesService {
       newInterestRate.productId = interestRate.productId;
       newInterestRate.termId = interestRate.termId;
       newInterestRate.value = interestRate.value;
-      newInterestRate.effectiveDate = interestRate.effectiveDate;
-      newInterestRate.expiredDate = interestRate.expiredDate;
+      newInterestRate.effectiveDate = new Date(interestRate.effectiveDate);
+      newInterestRate.expiredDate = new Date(interestRate.expiredDate);
       newInterestRate.createdBy = userId;
       newInterestRate.createdDate = new Date();
+      if (moment(newInterestRate.effectiveDate).isSame(new Date(), 'day')) {
+        newInterestRate.status = INTEREST_RATE.STATUS.ACTIVATED;
+      }
       await newInterestRate.save();
       return this.findOne(newInterestRate.id);
     } catch (error) {
       const { message } = error;
-      console.log(message);
       if (message.includes('CHK_FutureDates')) {
         throw new BadRequestException('Invalid effective date or expired date');
       } else if (message.includes('CHK_EffectiveAndExpiredDates')) {
@@ -90,7 +120,13 @@ export class InterestRatesService {
     id: number,
     interestRate: Partial<InterestRate>,
   ): Promise<InterestRate> {
-    await this.findOne(id);
+    const updateInterestRate = await this.findOne(id, true);
+
+    if (updateInterestRate.accounts.length > 0) {
+      throw new ForbiddenException(
+        'Cannot update because this interest rate is being used',
+      );
+    }
     const [_, [updatedInterestRate]] = await this.interestRateModel.update(
       { ...interestRate },
       { where: { id }, returning: true },
@@ -98,7 +134,17 @@ export class InterestRatesService {
     return this.findOne(updatedInterestRate.id);
   }
   async remove(id: number): Promise<void> {
-    const interest = await this.findOne(id);
-    await interest.destroy();
+    try {
+      const interest = await this.findOne(id);
+      await interest.destroy();
+    } catch (error) {
+      const { message } = error;
+      if (message.includes('FK')) {
+        throw new BadRequestException(
+          'Cannot delete because this interest rate is being used',
+        );
+      }
+      throw new Error(message);
+    }
   }
 }

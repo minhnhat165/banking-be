@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { Customer } from './customer.model';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -24,6 +25,7 @@ export class CustomersService {
       offset: page * limit,
       limit,
       where: filter,
+      order: [['id', 'DESC']],
     });
     return {
       items: rows,
@@ -74,8 +76,7 @@ export class CustomersService {
     } catch (error) {
       const errorKey = error['errors'][0].validatorKey;
       if (errorKey === 'not_unique') {
-        const errorMessage = error['errors'][0].message;
-        throw new ConflictException(errorMessage);
+        throw new ConflictException('Personal ID Number has been used');
       }
       throw new Error(error);
     }
@@ -91,16 +92,25 @@ export class CustomersService {
     } catch (error) {
       const errorKey = error['errors'][0].validatorKey;
       if (errorKey === 'not_unique') {
-        const errorMessage = error['errors'][0].message;
-        throw new ConflictException(errorMessage);
+        throw new ConflictException('Personal ID Number has been used');
       }
       throw new Error(error);
     }
   }
 
   async delete(id: number): Promise<Customer> {
-    const toDelete = await this.findOne(id);
-    await toDelete.destroy();
-    return toDelete;
+    try {
+      const toDelete = await this.findOne(id);
+      await toDelete.destroy();
+      return toDelete;
+    } catch (error) {
+      const { message } = error;
+      if (message.includes('FK')) {
+        throw new BadRequestException(
+          'Customer cannot be deleted because it is related to other data',
+        );
+      }
+      throw new Error(message);
+    }
   }
 }

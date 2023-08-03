@@ -2,6 +2,8 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Product } from './product.model';
 import { CreateProductDto } from './dto/create-product.dto';
 import { User } from 'src/users/user.model';
+import { PaginationParams } from 'src/common/dto/paginationParams';
+import { Pagination } from 'src/common/dto/pagination';
 
 @Injectable()
 export class ProductsService {
@@ -9,15 +11,29 @@ export class ProductsService {
     @Inject('ProductRepository')
     private readonly productModel: typeof Product,
   ) {}
-  async findAll(): Promise<Product[]> {
-    return this.productModel.findAll({
+
+  async findAll(
+    paginationParams: PaginationParams,
+  ): Promise<Pagination<Product>> {
+    const { page = 0, limit = 10, ...filter } = paginationParams;
+    const { rows, count } = await this.productModel.findAndCountAll({
+      offset: page * limit,
+      limit,
+      where: filter,
       include: [
         {
           model: User,
-          attributes: ['id', 'firstName', 'lastName', 'email'],
+          attributes: ['id', 'firstName', 'lastName', 'email', 'avatar'],
         },
       ],
+      order: [['id', 'DESC']],
     });
+    return {
+      items: rows,
+      total: count,
+      currentPage: page,
+      totalPages: Math.ceil(count / limit),
+    };
   }
   async findOne(id: number): Promise<Product> {
     const existingProduct = await this.productModel.findByPk(id);

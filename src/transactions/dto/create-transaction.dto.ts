@@ -3,4 +3,7 @@ export class CreateTransactionDto {
   readonly amount: number;
   readonly type: number;
   readonly description: string;
+  readonly balance: number;
+  readonly bnfAccountId?: number;
+  readonly drcrInd?: number;
 }

@@ -1,11 +1,18 @@
 import { CreateCustomerDto } from 'src/customers/dto/create-customer.dto';
+import { Transform } from 'class-transformer';
 
 export class CreateAccountDto {
-  readonly principal: number;
-  readonly interestRateId: number;
-  readonly paymentMethodId: number;
-  readonly rolloverId: number;
-  readonly type: number;
-  readonly customerId?: number;
-  readonly customer?: CreateCustomerDto;
+  @Transform(({ value }) => parseInt(value))
+  principal: number;
+  @Transform(({ value }) => parseInt(value))
+  interestRateId: number;
+  @Transform(({ value }) => parseInt(value))
+  paymentMethodId: number;
+  @Transform(({ value }) => parseInt(value))
+  rolloverId: number;
+  @Transform(({ value }) => parseInt(value))
+  type: number;
+  @Transform(({ value }) => parseInt(value))
+  customerId?: number;
+  customer?: CreateCustomerDto;
 }

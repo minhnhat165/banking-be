@@ -2,10 +2,12 @@ import {
   BelongsTo,
   Column,
   ForeignKey,
+  HasMany,
   Model,
   Table,
 } from 'sequelize-typescript';
 
+import { Account } from 'src/accounts/account.model';
 import { Product } from 'src/products/product.model';
 import { Term } from 'src/terms/terms.model';
 import { User } from 'src/users/user.model';
@@ -48,4 +50,7 @@ export class InterestRate extends Model {
   createdBy: number;
   @BelongsTo(() => User) // Define the association to the Roles model
   user: User;
+
+  @HasMany(() => Account) // Define the association to the Users model
+  accounts: Account[];
 }
