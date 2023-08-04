@@ -2,11 +2,13 @@ import {
   BelongsTo,
   Column,
   ForeignKey,
+  HasMany,
   Model,
   Table,
 } from 'sequelize-typescript';
 
 import { Role } from 'src/roles/role.model';
+import { UserPermission } from 'src/user-permissions/user-permission.model';
 
 @Table({
   tableName: 'Users',
@@ -47,4 +49,10 @@ export class User extends Model {
 
   @Column
   address: string;
+
+  @Column({ defaultValue: 0 })
+  gender: number;
+
+  @HasMany(() => UserPermission)
+  permissions: UserPermission[];
 }

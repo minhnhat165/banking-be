@@ -15,6 +15,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TermsModule } from './terms/terms.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { UsersModule } from './users/users.module';
+import { UserPermissionsModule } from './user-permissions/user-permissions.module';
 import configuration from './common/constant/env';
 
 @Module({
@@ -35,6 +36,7 @@ import configuration from './common/constant/env';
     AccountsModule,
     TransactionsModule,
     ScheduleModule.forRoot(),
+    UserPermissionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

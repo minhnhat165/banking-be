@@ -13,6 +13,7 @@ import { AuthService } from './auth.service';
 import { Response } from 'src/common/types/responses';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { UpdateUserDto } from 'src/users/dto/update-user.dto';
+import { LoginUserDto } from './dto/login-user.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -27,7 +28,7 @@ export class AuthController {
   }
 
   @Post('login')
-  async login(@Body() body): Promise<
+  async login(@Body() body: LoginUserDto): Promise<
     Response<{
       accessToken: string;
     }>

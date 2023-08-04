@@ -3,6 +3,7 @@ import { Customer } from 'src/customers/customer.model';
 import { DB } from 'src/common/constant/env';
 import { InterestPayment } from 'src/interest-payments/interest-payment.model';
 import { InterestRate } from 'src/interest-rates/interest-rate.model';
+import { Permission } from 'src/permission/permission.model';
 import { Product } from 'src/products/product.model';
 import { Role } from 'src/roles/role.model';
 import { Rollover } from 'src/rollovers/rollover.model';
@@ -10,6 +11,7 @@ import { Sequelize } from 'sequelize-typescript';
 import { Term } from 'src/terms/terms.model';
 import { Transaction } from 'src/transactions/transaction.model';
 import { User } from 'src/users/user.model';
+import { UserPermission } from 'src/user-permissions/user-permission.model';
 
 export const databaseProviders = [
   {
@@ -46,6 +48,8 @@ export const databaseProviders = [
         InterestRate,
         Account,
         Transaction,
+        Permission,
+        UserPermission,
       ]);
 
       // await sequelize.sync();

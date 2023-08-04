@@ -1,16 +1,19 @@
 import {
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { User } from './user.model';
-import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
-import { generateAvatar } from 'src/utils/generate-avatar';
-import { UpdateUserDto } from './dto/update-user.dto';
+import * as moment from 'moment';
+import { USER } from 'src/common/constant/user';
 import { Pagination } from 'src/common/dto/pagination';
 import { PaginationParams } from 'src/common/dto/paginationParams';
+import { generateAvatar } from 'src/utils/generate-avatar';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { User } from './user.model';
 @Injectable()
 export class UsersService {
   constructor(
@@ -18,15 +21,15 @@ export class UsersService {
     private readonly userModel: typeof User,
   ) {}
 
-  async findAll({
-    page = 0,
-    limit = 10,
-  }: PaginationParams): Promise<Pagination<User>> {
+  async findAll(paginationParams: PaginationParams): Promise<Pagination<User>> {
     //find all users with role
+    const { page = 0, limit = 10, ...filter } = paginationParams;
     const { rows, count } = await this.userModel.findAndCountAll({
       include: ['role'],
       limit,
+      where: filter,
       offset: page * limit,
+      order: [['id', 'DESC']],
     });
     return {
       items: rows,
@@ -37,7 +40,9 @@ export class UsersService {
   }
 
   async findById(id: number): Promise<User> {
-    return this.userModel.findByPk(id);
+    return this.userModel.findByPk(id, {
+      include: ['permissions'],
+    });
   }
 
   async findByEmail(email: string, allowDuplicate = false): Promise<User> {
@@ -59,7 +64,16 @@ export class UsersService {
     }
     const newUser = new User();
     newUser.email = user.email;
-    newUser.password = await bcrypt.hash(user.password, 10);
+    if (user?.password) {
+      newUser.password = await bcrypt.hash(user.password, 10);
+    } else {
+      const dob = moment(user.dob);
+      const password =
+        dob.get('date').toString() +
+        dob.get('month').toString() +
+        dob.get('year').toString();
+      newUser.password = await bcrypt.hash(password, 10);
+    }
     newUser.firstName = user.firstName;
     newUser.lastName = user.lastName;
     newUser.dob = user.dob;
@@ -89,5 +103,25 @@ export class UsersService {
     const updateUser = await this.userModel.findByPk(id);
     updateUser.password = await bcrypt.hash(password, 10);
     return updateUser.save();
+  }
+
+  async delete(id: number): Promise<void> {
+    const deleteUser = await this.userModel.findByPk(id);
+    if (deleteUser.status !== USER.STATUS.INACTIVE) {
+      throw new ForbiddenException('User can not delete');
+    }
+    deleteUser.destroy();
+  }
+
+  async lock(id: number): Promise<User> {
+    const user = await this.userModel.findByPk(id);
+    user.status = USER.STATUS.LOCKED;
+    return user.save();
+  }
+
+  async unlock(id: number): Promise<User> {
+    const user = await this.userModel.findByPk(id);
+    user.status = USER.STATUS.ACTIVE;
+    return user.save();
   }
 }

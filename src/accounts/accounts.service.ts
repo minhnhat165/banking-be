@@ -24,6 +24,7 @@ import { CreateAccountDto } from './dto/create-account.dto';
 import { TransactionDto } from './dto/transaction.dto';
 import { SettlementAccountDto } from './dto/settlement-account.dto';
 import { InterestRatesService } from 'src/interest-rates/interest-rates.service';
+import { AccessAccountDto } from './dto/access-account.dto';
 
 @Injectable()
 export class AccountsService {
@@ -62,7 +63,7 @@ export class AccountsService {
     };
   }
 
-  async findOne(id: number, showPin = false): Promise<Account> {
+  async findOne(id: number, showPin = false, pin = ''): Promise<Account> {
     const account = await this.accountRepository.findByPk(id, {
       include: [
         { all: true },
@@ -76,16 +77,53 @@ export class AccountsService {
     if (!account) {
       throw new NotFoundException('Invalid account id');
     }
+    if (showPin && pin) {
+      const match = await bcrypt.compare(pin, account.pin);
+      if (!match) {
+        throw new UnauthorizedException('Invalid pin');
+      }
+    }
     return account;
   }
 
   async findByNumber(number: string): Promise<Account> {
     const account = await this.accountRepository.findOne<Account>({
       where: { number },
+      include: [
+        { all: true },
+        {
+          model: InterestRate,
+          include: ['term', 'product'],
+        },
+      ],
+      attributes: { exclude: ['pin'] },
     });
 
     if (!account) {
       throw new NotFoundException('Invalid account number');
+    }
+    return account;
+  }
+
+  async findByNumberClient(
+    accessAccountDto: AccessAccountDto,
+  ): Promise<Account> {
+    const account = await this.accountRepository.findOne<Account>({
+      where: { number: accessAccountDto.number },
+      include: [
+        { all: true },
+        {
+          model: InterestRate,
+          include: ['term', 'product'],
+        },
+      ],
+    });
+
+    if (!account) {
+      throw new NotFoundException("Number or pin doesn't match");
+    }
+    if (!(await bcrypt.compare(accessAccountDto.pin.toString(), account.pin))) {
+      throw new UnauthorizedException("Number or pin doesn't match");
     }
     return account;
   }
@@ -267,7 +305,7 @@ export class AccountsService {
 
   async activate(activateAccountDto: ActivateAccountDto): Promise<Account> {
     const account = await this.findByNumber(activateAccountDto.number);
-    if (account.status === ACCOUNT.STATUS.ACTIVATED) {
+    if (account.status !== ACCOUNT.STATUS.INACTIVATED) {
       throw new BadRequestException('Account already activated');
     }
 
@@ -378,8 +416,17 @@ export class AccountsService {
     });
   }
 
-  async settle(settlementAccountDto: SettlementAccountDto): Promise<Account> {
-    const account = await this.findOne(settlementAccountDto.accountId, true);
+  async settle(
+    settlementAccountDto: SettlementAccountDto,
+    client = false,
+  ): Promise<Account> {
+    const account = client
+      ? await this.findOne(
+          settlementAccountDto.accountId,
+          true,
+          settlementAccountDto.pin,
+        )
+      : await this.findOne(settlementAccountDto.accountId, true);
     if (account.status === ACCOUNT.STATUS.INACTIVATED) {
       throw new BadRequestException('Account not activated');
     }
@@ -404,6 +451,8 @@ export class AccountsService {
     if (!isMaturity) {
       const interestRates = await this.interestRateService.findByProductId(4);
 
+      const interestRate = interestRates[0]?.value || 0.1;
+
       const months = today.diff(activeDate, 'months');
 
       switch (account.paymentMethodId) {
@@ -414,7 +463,7 @@ export class AccountsService {
         case ACCOUNT.INTEREST_PAYMENT_METHOD.REGULAR:
           let newBalance = account.principal;
           for (let i = 0; i < months; i++) {
-            newBalance += newBalance * (interestRates[0]?.value || 0.1 / 100);
+            newBalance += newBalance * (interestRate / 100);
           }
           debit = account.balance - newBalance;
           account.balance = newBalance;
@@ -423,7 +472,7 @@ export class AccountsService {
           const interest = this.calEndOfTermInterest({
             balance: account.principal,
             months,
-            interestRate: interestRates[0]?.value || 0.1,
+            interestRate: interestRate,
           });
           account.balance = account.principal + interest;
           break;
@@ -486,6 +535,7 @@ export class AccountsService {
     const account = await this.findOne(accountId);
     const interestRate = account.interestRate.value;
     const balance = account.balance;
+    console.log('balance', balance, 'interestRate', interestRate);
     const interest = (balance * interestRate) / (12 * 100);
     return interest;
   }
@@ -507,17 +557,18 @@ export class AccountsService {
     const account = await this.findOne(accountId);
     const activatedDate = account.activatedDate;
     const currentDate = moment();
-    const days = currentDate.diff(activatedDate, 'days');
     let payDate = moment(activatedDate);
     if (account.paymentMethodId === ACCOUNT.INTEREST_PAYMENT_METHOD.REGULAR) {
-      const currentMonth = Math.ceil(days / 30);
-      payDate = moment(activatedDate).add(30 * currentMonth, 'd');
+      const currentMonth = moment().diff(activatedDate, 'months');
+
+      payDate = moment(activatedDate).add(currentMonth, 'M');
     } else {
       payDate = moment(activatedDate).add(
         account.interestRate.term.value,
         'months',
       );
     }
+
     const isPayDate = currentDate.isSame(payDate, 'day');
     if (isPayDate) {
       const filter = {
@@ -526,8 +577,13 @@ export class AccountsService {
         type: TRANSACTION.TYPE.INTEREST,
       };
       const data = await this.transactionService.findAll(filter, true);
+      console.log(
+        '🚀 ~ file: accounts.service.ts:535 ~ AccountsService ~ payInterest ~ account.interestRate.value:',
+        account.interestRate.value,
+      );
       if (data.items.length === 0) {
         let interest = 0;
+
         switch (account.paymentMethodId) {
           case ACCOUNT.INTEREST_PAYMENT_METHOD.REGULAR:
             interest = await this.calMonthInterest(account.id);
@@ -550,7 +606,7 @@ export class AccountsService {
     }
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  @Cron(CronExpression.EVERY_11_HOURS)
   async payInterestTask() {
     const accounts = await this.accountRepository.findAll({
       where: {

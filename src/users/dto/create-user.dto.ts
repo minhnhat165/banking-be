@@ -7,5 +7,6 @@ export class CreateUserDto {
   readonly dob: Date;
   readonly phone: string;
   readonly address: string;
+  readonly gender: number;
   roleId: number;
 }

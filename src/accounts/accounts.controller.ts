@@ -18,6 +18,7 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { ActivateAccountDto } from './dto/activate-account.dto';
 import { SettlementAccountDto } from './dto/settlement-account.dto';
+import { AccessAccountDto } from './dto/access-account.dto';
 
 @Controller('accounts')
 export class AccountsController {
@@ -29,6 +30,31 @@ export class AccountsController {
     @Query() paginationParams: PaginationParams,
   ): Promise<Response<Pagination<Account>>> {
     const data = await this.accountsService.findAll(paginationParams);
+    return {
+      message: 'success',
+      data: data,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('number/:accountNumber')
+  async findByNumber(
+    @Param('accountNumber') accountNumber: string,
+  ): Promise<Response<Account>> {
+    const data = await this.accountsService.findByNumber(accountNumber);
+    return {
+      message: 'success',
+      data: data,
+    };
+  }
+
+  @Post('client/number')
+  async findByNumberClient(
+    @Body() accessAccountDto: AccessAccountDto,
+  ): Promise<Response<Account>> {
+    const data = await this.accountsService.findByNumberClient(
+      accessAccountDto,
+    );
     return {
       message: 'success',
       data: data,
@@ -68,6 +94,18 @@ export class AccountsController {
   @Patch('settle')
   async settle(@Body() settlementAccountDto: SettlementAccountDto) {
     const account = await this.accountsService.settle(settlementAccountDto);
+    return {
+      message: 'Account has been settled successfully',
+      data: account,
+    };
+  }
+
+  @Patch('client/settle')
+  async settleClient(@Body() settlementAccountDto: SettlementAccountDto) {
+    const account = await this.accountsService.settle(
+      settlementAccountDto,
+      true,
+    );
     return {
       message: 'Account has been settled successfully',
       data: account,

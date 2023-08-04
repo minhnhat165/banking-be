@@ -5,4 +5,5 @@ export class UpdateUserDto {
   readonly phone: string;
   readonly address: string;
   readonly avatar: string;
+  readonly gender: number;
 }
