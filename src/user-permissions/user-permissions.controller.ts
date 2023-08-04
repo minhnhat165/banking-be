@@ -6,11 +6,13 @@ import { UserPermission } from './user-permission.model';
 import { Response } from 'src/common/types/responses';
 import { Pagination } from 'src/common/dto/pagination';
 import { CreateUserPermissionDto } from './dto/create-user-permission.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Controller('user-permissions')
 export class UserPermissionsController {
   constructor(
     private readonly userPermissionsService: UserPermissionsService,
+    private eventEmitter: EventEmitter2,
   ) {}
   @UseGuards(JwtAuthGuard)
   @Get()
@@ -32,6 +34,7 @@ export class UserPermissionsController {
       await this.userPermissionsService.addPermissionToUser(
         createUserPermissionDto,
       );
+    this.eventEmitter.emit('permission.update', createUserPermissionDto.userId);
     return {
       message: 'User permission has been created successfully',
       data: newUserPermission,
@@ -46,6 +49,7 @@ export class UserPermissionsController {
     await this.userPermissionsService.removePermissionFromUser(
       createUserPermissionDto,
     );
+    this.eventEmitter.emit('permission.update', createUserPermissionDto.userId);
     return {
       message: 'User permission has been removed successfully',
       data: null,
