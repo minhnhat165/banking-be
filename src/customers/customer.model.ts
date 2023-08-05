@@ -29,4 +29,7 @@ export class Customer extends Model {
   pin: string;
   @Column
   gender: number;
+
+  @Column({ field: 'created_date' })
+  createdDate: Date;
 }

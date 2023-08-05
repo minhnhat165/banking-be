@@ -28,6 +28,21 @@ export class CustomersController {
       data: data,
     };
   }
+
+  @Get('overview')
+  async getOverview(): Promise<
+    Response<{
+      total: number;
+      locked: number;
+      unlocked: number;
+    }>
+  > {
+    const data = await this.customersService.getOverview();
+    return {
+      message: 'User has been unlocked successfully',
+      data: data,
+    };
+  }
   @Get('pin/:pin')
   async findByPin(@Param('pin') pin: string): Promise<Response<Customer>> {
     const data = await this.customersService.findOneByPin(pin);

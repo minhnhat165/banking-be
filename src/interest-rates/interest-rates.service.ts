@@ -6,15 +6,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { InterestRate } from './interest-rate.model';
-import { CreateInterestRateDto } from './dto/create-interst-rate.dto';
-import { PaginationParams } from 'src/common/dto/paginationParams';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import * as moment from 'moment';
+import { Op } from 'sequelize';
+import { INTEREST_RATE } from 'src/common/constant/interest-rate';
 import { Pagination } from 'src/common/dto/pagination';
+import { PaginationParams } from 'src/common/dto/paginationParams';
 import { Product } from 'src/products/product.model';
 import { Term } from 'src/terms/terms.model';
 import { User } from 'src/users/user.model';
-import * as moment from 'moment';
-import { INTEREST_RATE } from 'src/common/constant/interest-rate';
+import { CreateInterestRateDto } from './dto/create-interst-rate.dto';
+import { InterestRate } from './interest-rate.model';
 
 @Injectable()
 export class InterestRatesService {
@@ -145,6 +147,48 @@ export class InterestRatesService {
         );
       }
       throw new Error(message);
+    }
+  }
+
+  @Cron(CronExpression.EVERY_10_HOURS)
+  async updateStatusInterestRate() {
+    const interestRates = await this.interestRateModel.findAll({
+      where: {
+        status: INTEREST_RATE.STATUS.ACTIVATED,
+        expiredDate: {
+          [Op.lte]: new Date(),
+        },
+      },
+    });
+    if (interestRates.length > 0) {
+      await this.interestRateModel.update(
+        { status: INTEREST_RATE.STATUS.EXPIRED },
+        {
+          where: {
+            id: interestRates.map((interestRate) => interestRate.id),
+          },
+        },
+      );
+    }
+
+    // update status activated
+    const interestRatesActivated = await this.interestRateModel.findAll({
+      where: {
+        status: INTEREST_RATE.STATUS.INACTIVATED,
+        effectiveDate: {
+          [Op.lte]: new Date(),
+        },
+      },
+    });
+    if (interestRatesActivated.length > 0) {
+      await this.interestRateModel.update(
+        { status: INTEREST_RATE.STATUS.ACTIVATED },
+        {
+          where: {
+            id: interestRatesActivated.map((interestRate) => interestRate.id),
+          },
+        },
+      );
     }
   }
 }

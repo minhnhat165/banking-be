@@ -5,7 +5,6 @@ import { InterestPayment } from 'src/interest-payments/interest-payment.model';
 import { InterestRate } from 'src/interest-rates/interest-rate.model';
 import { Permission } from 'src/permission/permission.model';
 import { Product } from 'src/products/product.model';
-import { Role } from 'src/roles/role.model';
 import { Rollover } from 'src/rollovers/rollover.model';
 import { Sequelize } from 'sequelize-typescript';
 import { Term } from 'src/terms/terms.model';
@@ -39,7 +38,6 @@ export const databaseProviders = [
        */
       sequelize.addModels([
         User,
-        Role,
         Product,
         Term,
         Rollover,

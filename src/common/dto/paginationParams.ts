@@ -17,4 +17,7 @@ export class PaginationParams extends Object {
   @IsNumber()
   @Min(1)
   limit?: number;
+
+  @IsOptional()
+  q?: string;
 }

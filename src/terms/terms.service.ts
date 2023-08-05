@@ -10,6 +10,7 @@ import { User } from 'src/users/user.model';
 import { PaginationParams } from 'src/common/dto/paginationParams';
 import { Pagination } from 'src/common/dto/pagination';
 import { InterestRatesService } from 'src/interest-rates/interest-rates.service';
+import { INTEREST_RATE } from 'src/common/constant/interest-rate';
 
 @Injectable()
 export class TermsService {
@@ -47,13 +48,19 @@ export class TermsService {
     return existingTerm;
   }
   async create(term: CreateTermDto, userId: number): Promise<Term> {
-    const newTerm = new Term();
-    newTerm.name = term.name;
-    newTerm.description = term.description;
-    newTerm.createdBy = userId;
-    newTerm.value = term.value;
-    newTerm.createdDate = new Date();
-    return newTerm.save();
+    try {
+      const newTerm = new Term();
+      newTerm.name = term.name;
+      newTerm.description = term.description;
+      newTerm.createdBy = userId;
+      newTerm.value = term.value;
+      newTerm.createdDate = new Date();
+      return await newTerm.save();
+    } catch (error) {
+      throw new ForbiddenException(
+        `Term with value ${term.value} already exists`,
+      );
+    }
   }
   async update(id: number, term: Partial<CreateTermDto>): Promise<Term> {
     await this.findOne(id);
@@ -83,5 +90,22 @@ export class TermsService {
         `Term with id ${id} has interest rates. Cannot delete`,
       );
     }
+  }
+  async findNoneTerm() {
+    const filter = {
+      value: 0,
+    };
+    const terms = await this.findAll(filter);
+    const term = terms?.items[0];
+
+    if (!term) return null;
+    const interestFilter = {
+      termId: term.id,
+      status: INTEREST_RATE.STATUS.ACTIVATED,
+    };
+    const interestRates = await this.interestRateService.findAll(
+      interestFilter,
+    );
+    return interestRates;
   }
 }

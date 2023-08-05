@@ -25,6 +25,13 @@ import { TransactionDto } from './dto/transaction.dto';
 import { SettlementAccountDto } from './dto/settlement-account.dto';
 import { InterestRatesService } from 'src/interest-rates/interest-rates.service';
 import { AccessAccountDto } from './dto/access-account.dto';
+import { Op } from 'sequelize';
+import { TermsService } from 'src/terms/terms.service';
+import { randomUUID } from 'crypto';
+
+const otps_tmp: {
+  [key: string]: { otp: string; data: CreateAccountDto };
+} = {};
 
 @Injectable()
 export class AccountsService {
@@ -35,16 +42,44 @@ export class AccountsService {
     private readonly customerService: CustomersService,
     private readonly transactionService: TransactionsService,
     private readonly interestRateService: InterestRatesService,
+    private readonly termService: TermsService,
   ) {}
 
   async findAll(
     paginationParams: PaginationParams,
   ): Promise<Pagination<Account>> {
     const { page = 0, limit = 10, ...filter } = paginationParams;
+    const filterKeys = Object.keys(filter);
+    let filterObject = {};
+    if (filterKeys.includes('q')) {
+      filterObject = {
+        [Op.or]: {
+          number: {
+            [Op.like]: `%${filter.q}%`,
+          },
+          '$paymentMethod.name$': {
+            [Op.like]: `%${filter.q}%`,
+          },
+
+          '$customer.first_name$': {
+            [Op.like]: `%${filter.q}%`,
+          },
+          '$customer.last_name$': {
+            [Op.like]: `%${filter.q}%`,
+          },
+        },
+      };
+    }
+    filterKeys.forEach((key) => {
+      if (key === 'q') {
+        return;
+      }
+      filterObject[key] = filter[key];
+    });
     const { rows, count } = await this.accountRepository.findAndCountAll({
       offset: page * limit,
       limit,
-      where: filter,
+      where: filterObject,
       order: [['id', 'DESC']],
       include: [
         { all: true },
@@ -107,6 +142,8 @@ export class AccountsService {
 
   async findByNumberClient(
     accessAccountDto: AccessAccountDto,
+    isCheckTypeChecking = false,
+    isCheckStatusActive = false,
   ): Promise<Account> {
     const account = await this.accountRepository.findOne<Account>({
       where: { number: accessAccountDto.number },
@@ -125,6 +162,15 @@ export class AccountsService {
     if (!(await bcrypt.compare(accessAccountDto.pin.toString(), account.pin))) {
       throw new UnauthorizedException("Number or pin doesn't match");
     }
+
+    if (isCheckTypeChecking && account.type !== ACCOUNT.TYPE.CHECKING) {
+      throw new BadRequestException('Must be checking account');
+    }
+
+    if (isCheckStatusActive && account.status !== ACCOUNT.STATUS.ACTIVATED) {
+      throw new BadRequestException('Account is not activated');
+    }
+
     return account;
   }
 
@@ -397,6 +443,30 @@ export class AccountsService {
     });
   }
 
+  async transfer(transactionDto: TransactionDto): Promise<void> {
+    const account = await this.findOne(transactionDto.accountId);
+    if (account.status !== ACCOUNT.STATUS.ACTIVATED) {
+      throw new BadRequestException('Account not activated');
+    }
+    if (account.balance < transactionDto.amount) {
+      throw new BadRequestException('Not enough balance');
+    }
+    account.balance -= transactionDto.amount;
+    await account.save();
+    await this.transactionService.create({
+      accountId: transactionDto.accountId,
+      amount: -transactionDto.amount,
+      description: 'Chuyển tiền',
+      type: TRANSACTION.TYPE.TRANSFER,
+      balance: account.balance,
+      bnfAccountId: transactionDto.bnfAccountId,
+    });
+    await this.updateBalance(
+      transactionDto.bnfAccountId,
+      transactionDto.amount,
+    );
+  }
+
   async paymentInterest(transaction: TransactionDto): Promise<void> {
     const account = await this.findOne(transaction.accountId);
     if (account.status !== ACCOUNT.STATUS.ACTIVATED) {
@@ -449,7 +519,7 @@ export class AccountsService {
     let debit = 0;
 
     if (!isMaturity) {
-      const interestRates = await this.interestRateService.findByProductId(4);
+      const interestRates = await this.termService.findNoneTerm();
 
       const interestRate = interestRates[0]?.value || 0.1;
 
@@ -535,7 +605,6 @@ export class AccountsService {
     const account = await this.findOne(accountId);
     const interestRate = account.interestRate.value;
     const balance = account.balance;
-    console.log('balance', balance, 'interestRate', interestRate);
     const interest = (balance * interestRate) / (12 * 100);
     return interest;
   }
@@ -642,5 +711,154 @@ export class AccountsService {
       account.status = ACCOUNT.STATUS.MATURITY;
       await account.save();
     }
+  }
+
+  async getOverviews() {
+    const total = await this.accountRepository.count();
+    const totalLastMonth = await this.accountRepository.count({
+      where: {
+        createdDate: {
+          [Op.gte]: moment().subtract(1, 'months').startOf('month').toDate(),
+          [Op.lte]: moment().subtract(1, 'months').endOf('month').toDate(),
+        },
+      },
+    });
+    const totalThisMonth = await this.accountRepository.count({
+      where: {
+        createdDate: {
+          [Op.gte]: moment().startOf('month').toDate(),
+        },
+      },
+    });
+
+    if (totalLastMonth - totalThisMonth === 0) {
+      return {
+        total,
+        percent: 0,
+        totalLastMonth,
+        totalThisMonth,
+        status: 0,
+      };
+    }
+
+    if (totalLastMonth === 0) {
+      return {
+        total,
+        percent: 100,
+        totalLastMonth,
+        totalThisMonth,
+        status: 1,
+      };
+    }
+
+    if (totalThisMonth === 0) {
+      return {
+        total,
+        percent: -100,
+        totalLastMonth,
+        totalThisMonth,
+        status: -1,
+      };
+    }
+
+    const percent = ((totalThisMonth - totalLastMonth) / totalLastMonth) * 100;
+    return {
+      total,
+      percent,
+      totalLastMonth,
+      totalThisMonth,
+      status: percent > 0 ? 1 : -1,
+    };
+  }
+
+  async register(account: CreateAccountDto): Promise<{
+    transactionId: string;
+  }> {
+    console.log(
+      '🚀 ~ file: accounts.service.ts ~ line 100 ~ AccountsService ~ register ~ account',
+      account.sourceAccountEmail,
+    );
+    const opt = this.generateNumber(6);
+    const transactionId = randomUUID();
+    otps_tmp[transactionId] = {
+      otp: opt,
+      data: account,
+    };
+    const message = `Your OTP is ${opt}`;
+    await this.mailerService.sendMail({
+      to: account.sourceAccountEmail,
+      subject: 'OTP',
+      text: message,
+    });
+    return { transactionId };
+  }
+  async createClient({ transactionId, otp }): Promise<Account> {
+    const data = otps_tmp[transactionId];
+    if (!data) {
+      throw new BadRequestException('Invalid transaction');
+    }
+    if (data.otp !== otp.toString()) {
+      throw new BadRequestException('Invalid OTP');
+    }
+    console.log('🚀 ~ file: accounts.service.ts ~ line 127 ~ otp', data);
+    const account = data.data;
+    const newAccount = new Account();
+    if (account.customerId) {
+      const customer = await this.customerService.findOne(account.customerId);
+      newAccount.customerId = customer.id;
+    } else if (account.customer) {
+      const customer = await this.customerService.create(account.customer);
+      newAccount.customerId = customer.id;
+    } else {
+      throw new BadRequestException('Invalid customer');
+    }
+
+    newAccount.type = account.type;
+    newAccount.principal = account.principal;
+    const pin = this.generateNumber(6);
+    newAccount.pin = await bcrypt.hash(pin, 10);
+    newAccount.number = await this.generateAccountNumber();
+    newAccount.status = ACCOUNT.STATUS.ACTIVATED;
+    newAccount.activatedDate = new Date();
+    if (account.type === ACCOUNT.TYPE.DEPOSIT) {
+      newAccount.rolloverId = account.rolloverId;
+      newAccount.interestRateId = account.interestRateId;
+      newAccount.paymentMethodId = account.paymentMethodId;
+    }
+    const savedAccount = await newAccount.save();
+    await this.transfer({
+      accountId: account.sourceAccountId,
+      amount: account.principal,
+      bnfAccountId: savedAccount.id,
+    });
+    if (
+      savedAccount?.paymentMethodId === ACCOUNT.INTEREST_PAYMENT_METHOD.PREPAID
+    ) {
+      await this.paymentInterest({
+        accountId: savedAccount.id,
+        amount: await this.calPrepaidInterest(savedAccount.id),
+      });
+    }
+    await this.sendRegisterEmail({
+      customerId: savedAccount.customerId,
+      number: savedAccount.number,
+      pin,
+    });
+    return await this.findOne(savedAccount.id);
+  }
+  async sendRegisterEmail(account: {
+    customerId: number;
+    number: string;
+    pin: string;
+  }): Promise<void> {
+    const email = (await this.customerService.findOne(account.customerId))
+      .email;
+    const subject = 'Register account successfully';
+    const html = ` Your new account number is ${account.number}  pin is ${account.pin}`;
+    await this.mailerService.sendMail({
+      to: email,
+      subject,
+      html,
+    });
   }
 }

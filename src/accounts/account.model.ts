@@ -37,20 +37,20 @@ export class Account extends Model {
   @ForeignKey(() => Customer)
   @Column({ field: 'customer_id' })
   customerId: number;
-  @BelongsTo(() => Customer) // Define the association to the Roles model
+  @BelongsTo(() => Customer)
   customer: Customer;
   @ForeignKey(() => InterestRate)
   @Column({
     field: 'interest_rate_id',
   })
   interestRateId: number;
-  @BelongsTo(() => InterestRate) // Define the association to the Roles model
+  @BelongsTo(() => InterestRate)
   interestRate: InterestRate;
 
   @ForeignKey(() => InterestPayment)
   @Column({ field: 'payment_method_id' })
   paymentMethodId: number;
-  @BelongsTo(() => InterestPayment) // Define the association to the Roles model
+  @BelongsTo(() => InterestPayment)
   paymentMethod: InterestPayment;
 
   @ForeignKey(() => Rollover)
@@ -58,7 +58,7 @@ export class Account extends Model {
     field: 'rollover_id',
   })
   rolloverId: number;
-  @BelongsTo(() => Rollover) // Define the association to the Roles model
+  @BelongsTo(() => Rollover)
   rollover: Rollover;
   @Column({
     field: 'created_date',

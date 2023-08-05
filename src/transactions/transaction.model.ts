@@ -41,9 +41,11 @@ export class Transaction extends Model {
   @Column
   balance: number;
 
+  @ForeignKey(() => Account)
   @Column({ field: 'bnf_account_id' })
   bnfAccountId: number;
-
+  @BelongsTo(() => Account, 'bnfAccountId')
+  bnfAccount: Account;
   @Column({
     field: 'drcr_ind',
   })

@@ -48,6 +48,16 @@ export class AccountsController {
     };
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('overview')
+  async getOverview(): Promise<Response<any>> {
+    const data = await this.accountsService.getOverviews();
+    return {
+      message: 'User has been unlocked successfully',
+      data: data,
+    };
+  }
+
   @Post('client/number')
   async findByNumberClient(
     @Body() accessAccountDto: AccessAccountDto,
@@ -55,6 +65,43 @@ export class AccountsController {
     const data = await this.accountsService.findByNumberClient(
       accessAccountDto,
     );
+    return {
+      message: 'success',
+      data: data,
+    };
+  }
+  @Post('check-register')
+  async checkRegister(
+    @Body() accessAccountDto: AccessAccountDto,
+  ): Promise<Response<Account>> {
+    const data = await this.accountsService.findByNumberClient(
+      accessAccountDto,
+      true,
+      true,
+    );
+    return {
+      message: 'success',
+      data: data,
+    };
+  }
+  @Post('register')
+  async register(@Body() createAccountDto: CreateAccountDto): Promise<
+    Response<{
+      transactionId: string;
+    }>
+  > {
+    const data = await this.accountsService.register(createAccountDto);
+    return {
+      message: 'success',
+      data: data,
+    };
+  }
+
+  @Post('verify-otp')
+  async verifyOtp(
+    @Body() createAccountDto: { otp: string; transactionId: string },
+  ): Promise<Response<Account>> {
+    const data = await this.accountsService.createClient(createAccountDto);
     return {
       message: 'success',
       data: data,

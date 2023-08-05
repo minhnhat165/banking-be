@@ -4,7 +4,9 @@ import { Pagination } from 'src/common/dto/pagination';
 import { PaginationParams } from 'src/common/dto/paginationParams';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { Transaction } from './transaction.model';
-import { Account } from 'src/accounts/account.model';
+
+import * as moment from 'moment';
+import { Op } from 'sequelize';
 
 @Injectable()
 export class TransactionsService {
@@ -18,17 +20,39 @@ export class TransactionsService {
     all = false,
   ): Promise<Pagination<Transaction>> {
     const { page = 0, limit = 10, ...filter } = paginationParams;
-
-    const query: Omit<FindAndCountOptions<Attributes<Transaction>>, 'group'> = {
-      where: filter,
-      include: [
-        {
-          model: Account,
-          attributes: {
-            exclude: ['pin'],
+    const filterKeys = Object.keys(filter);
+    let filterObject = {};
+    if (filterKeys.includes('q')) {
+      filterObject = {
+        [Op.or]: {
+          '$account.number$': {
+            [Op.like]: `%${filter.q}%`,
+          },
+          '$bnfAccount.number$': {
+            [Op.like]: `%${filter.q}%`,
+          },
+          description: {
+            [Op.like]: `%${filter.q}%`,
+          },
+          balance: {
+            [Op.like]: `%${filter.q}%`,
+          },
+          amount: {
+            [Op.like]: `%${filter.q}%`,
           },
         },
-      ],
+      };
+    }
+    filterKeys.forEach((key) => {
+      if (key === 'q') {
+        return;
+      }
+      filterObject[key] = filter[key];
+    });
+
+    const query: Omit<FindAndCountOptions<Attributes<Transaction>>, 'group'> = {
+      where: filterObject,
+      include: ['account', 'bnfAccount'],
       order: [['id', 'DESC']],
     };
 
@@ -78,5 +102,63 @@ export class TransactionsService {
         },
       },
     });
+  }
+  async getOverviews() {
+    const total = await this.transactionModel.count();
+    const totalLastMonth = await this.transactionModel.count({
+      where: {
+        transactionDate: {
+          [Op.gte]: moment().subtract(1, 'months').startOf('month').toDate(),
+          [Op.lte]: moment().subtract(1, 'months').endOf('month').toDate(),
+        },
+      },
+    });
+    console.log(totalLastMonth);
+    const totalThisMonth = await this.transactionModel.count({
+      where: {
+        transactionDate: {
+          [Op.gte]: moment().startOf('month').toDate(),
+        },
+      },
+    });
+
+    if (totalLastMonth - totalThisMonth === 0) {
+      return {
+        total,
+        percent: 0,
+        totalLastMonth,
+        totalThisMonth,
+        status: 0,
+      };
+    }
+
+    if (totalLastMonth === 0) {
+      return {
+        total,
+        percent: 100,
+        totalLastMonth,
+        totalThisMonth,
+        status: 1,
+      };
+    }
+
+    if (totalThisMonth === 0) {
+      return {
+        total,
+        percent: -100,
+        totalLastMonth,
+        totalThisMonth,
+        status: -1,
+      };
+    }
+
+    const percent = ((totalThisMonth - totalLastMonth) / totalLastMonth) * 100;
+    return {
+      total,
+      percent,
+      totalLastMonth,
+      totalThisMonth,
+      status: percent > 0 ? 1 : -1,
+    };
   }
 }

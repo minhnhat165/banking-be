@@ -1,13 +1,5 @@
-import {
-  BelongsTo,
-  Column,
-  ForeignKey,
-  HasMany,
-  Model,
-  Table,
-} from 'sequelize-typescript';
+import { Column, HasMany, Model, Table } from 'sequelize-typescript';
 
-import { Role } from 'src/roles/role.model';
 import { UserPermission } from 'src/user-permissions/user-permission.model';
 
 @Table({
@@ -25,12 +17,6 @@ export class User extends Model {
 
   @Column({ defaultValue: 0 })
   status: number;
-
-  @ForeignKey(() => Role)
-  @Column({ field: 'role_id' })
-  roleId: number;
-  @BelongsTo(() => Role) // Define the association to the Roles model
-  role: Role;
 
   @Column({ field: 'first_name' })
   firstName: string;
@@ -55,4 +41,7 @@ export class User extends Model {
 
   @HasMany(() => UserPermission)
   permissions: UserPermission[];
+
+  @Column({ field: 'created_date' })
+  createdDate: Date;
 }

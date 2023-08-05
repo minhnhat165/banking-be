@@ -20,4 +20,13 @@ export class TransactionsController {
       data: data,
     };
   }
+  @UseGuards(JwtAuthGuard)
+  @Get('overview')
+  async getOverview(): Promise<Response<any>> {
+    const data = await this.transactionsService.getOverviews();
+    return {
+      message: 'Success',
+      data: data,
+    };
+  }
 }

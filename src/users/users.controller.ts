@@ -33,6 +33,21 @@ export class UsersController {
     };
   }
   @UseGuards(JwtAuthGuard)
+  @Get('overview')
+  async getOverview(): Promise<
+    Response<{
+      total: number;
+      locked: number;
+      unlocked: number;
+    }>
+  > {
+    const data = await this.usersService.getOverview();
+    return {
+      message: 'User has been unlocked successfully',
+      data: data,
+    };
+  }
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   async findById(@Param('id') id: number): Promise<User> {
     return this.usersService.findById(id);

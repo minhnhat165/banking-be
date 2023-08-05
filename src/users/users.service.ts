@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import * as moment from 'moment';
+import { Op } from 'sequelize';
 import { USER } from 'src/common/constant/user';
 import { Pagination } from 'src/common/dto/pagination';
 import { PaginationParams } from 'src/common/dto/paginationParams';
@@ -24,10 +25,40 @@ export class UsersService {
   async findAll(paginationParams: PaginationParams): Promise<Pagination<User>> {
     //find all users with role
     const { page = 0, limit = 10, ...filter } = paginationParams;
+    const filterKeys = Object.keys(filter);
+    let filterObject = {};
+    if (filterKeys.includes('q')) {
+      filterObject = {
+        [Op.or]: {
+          firstName: {
+            [Op.like]: `%${filter.q}%`,
+          },
+          lastName: {
+            [Op.like]: `%${filter.q}%`,
+          },
+          email: {
+            [Op.like]: `%${filter.q}%`,
+          },
+          address: {
+            [Op.like]: `%${filter.q}%`,
+          },
+          phone: {
+            [Op.like]: `%${filter.q}%`,
+          },
+        },
+      };
+    }
+
+    filterKeys.forEach((key) => {
+      if (key === 'q') {
+        return;
+      }
+      filterObject[key] = filter[key];
+    });
+
     const { rows, count } = await this.userModel.findAndCountAll({
-      include: ['role'],
       limit,
-      where: filter,
+      where: filterObject,
       offset: page * limit,
       order: [['id', 'DESC']],
     });
@@ -79,7 +110,6 @@ export class UsersService {
     newUser.dob = user.dob;
     newUser.phone = user.phone;
     newUser.address = user.address;
-    newUser.roleId = user.roleId;
     newUser.avatar = generateAvatar(user.firstName + ' ' + user.lastName);
     return newUser.save();
   }
@@ -123,5 +153,63 @@ export class UsersService {
     const user = await this.userModel.findByPk(id);
     user.status = USER.STATUS.ACTIVE;
     return user.save();
+  }
+
+  async getOverview(): Promise<any> {
+    const total = await this.userModel.count();
+    const totalLastMonth = await this.userModel.count({
+      where: {
+        createdDate: {
+          [Op.gte]: moment().subtract(1, 'months').startOf('month').toDate(),
+          [Op.lte]: moment().subtract(1, 'months').endOf('month').toDate(),
+        },
+      },
+    });
+    const totalThisMonth = await this.userModel.count({
+      where: {
+        createdDate: {
+          [Op.gte]: moment().startOf('month').toDate(),
+        },
+      },
+    });
+
+    if (totalLastMonth - totalThisMonth === 0) {
+      return {
+        total,
+        percent: 0,
+        totalLastMonth,
+        totalThisMonth,
+        status: 0,
+      };
+    }
+
+    if (totalLastMonth === 0) {
+      return {
+        total,
+        percent: 100,
+        totalLastMonth,
+        totalThisMonth,
+        status: 1,
+      };
+    }
+
+    if (totalThisMonth === 0) {
+      return {
+        total,
+        percent: -100,
+        totalLastMonth,
+        totalThisMonth,
+        status: -1,
+      };
+    }
+
+    const percent = ((totalThisMonth - totalLastMonth) / totalLastMonth) * 100;
+    return {
+      total,
+      percent,
+      totalLastMonth,
+      totalThisMonth,
+      status: percent > 0 ? 1 : -1,
+    };
   }
 }

@@ -4,6 +4,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { User } from 'src/users/user.model';
 import { PaginationParams } from 'src/common/dto/paginationParams';
 import { Pagination } from 'src/common/dto/pagination';
+import { Op } from 'sequelize';
 
 @Injectable()
 export class ProductsService {
@@ -16,10 +17,30 @@ export class ProductsService {
     paginationParams: PaginationParams,
   ): Promise<Pagination<Product>> {
     const { page = 0, limit = 10, ...filter } = paginationParams;
+    const filterKeys = Object.keys(filter);
+    let filterObject = {};
+    if (filterKeys.includes('q')) {
+      filterObject = {
+        [Op.or]: {
+          name: {
+            [Op.like]: `%${filter.q}%`,
+          },
+          description: {
+            [Op.like]: `%${filter.q}%`,
+          },
+        },
+      };
+    }
+    filterKeys.forEach((key) => {
+      if (key === 'q') {
+        return;
+      }
+      filterObject[key] = filter[key];
+    });
     const { rows, count } = await this.productModel.findAndCountAll({
       offset: page * limit,
       limit,
-      where: filter,
+      where: filterObject,
       include: [
         {
           model: User,

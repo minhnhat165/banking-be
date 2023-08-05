@@ -9,6 +9,8 @@ import { Customer } from './customer.model';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { PaginationParams } from 'src/common/dto/paginationParams';
 import { Pagination } from 'src/common/dto/pagination';
+import { Op } from 'sequelize';
+import * as moment from 'moment';
 
 @Injectable()
 export class CustomersService {
@@ -112,5 +114,63 @@ export class CustomersService {
       }
       throw new Error(message);
     }
+  }
+
+  async getOverview(): Promise<any> {
+    const total = await this.customerModel.count();
+    const totalLastMonth = await this.customerModel.count({
+      where: {
+        createdDate: {
+          [Op.gte]: moment().subtract(1, 'months').startOf('month').toDate(),
+          [Op.lte]: moment().subtract(1, 'months').endOf('month').toDate(),
+        },
+      },
+    });
+    const totalThisMonth = await this.customerModel.count({
+      where: {
+        createdDate: {
+          [Op.gte]: moment().startOf('month').toDate(),
+        },
+      },
+    });
+
+    if (totalLastMonth - totalThisMonth === 0) {
+      return {
+        total,
+        percent: 0,
+        totalLastMonth,
+        totalThisMonth,
+        status: 0,
+      };
+    }
+
+    if (totalLastMonth === 0) {
+      return {
+        total,
+        percent: 100,
+        totalLastMonth,
+        totalThisMonth,
+        status: 1,
+      };
+    }
+
+    if (totalThisMonth === 0) {
+      return {
+        total,
+        percent: -100,
+        totalLastMonth,
+        totalThisMonth,
+        status: -1,
+      };
+    }
+
+    const percent = ((totalThisMonth - totalLastMonth) / totalLastMonth) * 100;
+    return {
+      total,
+      percent,
+      totalLastMonth,
+      totalThisMonth,
+      status: percent > 0 ? 1 : -1,
+    };
   }
 }

@@ -15,4 +15,9 @@ export class CreateAccountDto {
   @Transform(({ value }) => parseInt(value))
   customerId?: number;
   customer?: CreateCustomerDto;
+  sourceAccountEmail?: string;
+  @Transform(({ value }) => parseInt(value))
+  sourceAccountId?: number;
+  @Transform(({ value }) => parseInt(value))
+  sourceAccountNumber?: number;
 }

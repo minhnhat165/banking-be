@@ -21,13 +21,13 @@ export class InterestRate extends Model {
   @ForeignKey(() => Product)
   @Column({ field: 'product_type_id' })
   productId: number;
-  @BelongsTo(() => Product) // Define the association to the Roles model
+  @BelongsTo(() => Product)
   product: Product;
 
   @ForeignKey(() => Term)
   @Column({ field: 'term_id' })
   termId: number;
-  @BelongsTo(() => Term) // Define the association to the Roles model
+  @BelongsTo(() => Term)
   term: Term;
 
   @Column({ defaultValue: 0 })
@@ -48,9 +48,9 @@ export class InterestRate extends Model {
   @ForeignKey(() => User)
   @Column({ field: 'created_by' })
   createdBy: number;
-  @BelongsTo(() => User) // Define the association to the Roles model
+  @BelongsTo(() => User)
   user: User;
 
-  @HasMany(() => Account) // Define the association to the Users model
+  @HasMany(() => Account)
   accounts: Account[];
 }
