@@ -1,6 +1,6 @@
 export class SettlementAccountDto {
   accountId: number;
-  rolloverId: number;
-  bnfAccountId?: number;
+  rolloverId?: number;
+  transferAccountId?: number;
   pin?: string;
 }

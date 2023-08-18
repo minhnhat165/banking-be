@@ -5,5 +5,6 @@ export const TRANSACTION = {
     TRANSFER: 3,
     INTEREST: 4,
     SETTLEMENT: 5,
+    RENEWAL: 6,
   },
 };

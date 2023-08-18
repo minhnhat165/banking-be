@@ -129,15 +129,6 @@ export class AccountsController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Patch('change-pin')
-  async changePin(@Body() activeAccountDto: ActivateAccountDto) {
-    const account = await this.accountsService.changePin(activeAccountDto);
-    return {
-      message: 'Pin has been changed successfully',
-      data: account,
-    };
-  }
-  @UseGuards(JwtAuthGuard)
   @Patch('settle')
   async settle(@Body() settlementAccountDto: SettlementAccountDto) {
     const account = await this.accountsService.settle(settlementAccountDto);
@@ -147,15 +138,15 @@ export class AccountsController {
     };
   }
 
-  @Patch('client/settle')
-  async settleClient(@Body() settlementAccountDto: SettlementAccountDto) {
-    const account = await this.accountsService.settle(
-      settlementAccountDto,
-      true,
+  @UseGuards(JwtAuthGuard)
+  @Patch('deposit')
+  async deposit(@Body() account: { accountId: number; amount: number }) {
+    await this.accountsService.depositAccount(
+      account.accountId,
+      account.amount,
     );
     return {
       message: 'Account has been settled successfully',
-      data: account,
     };
   }
 
@@ -181,14 +172,13 @@ export class AccountsController {
       data: account,
     };
   }
-
   @UseGuards(JwtAuthGuard)
-  @Patch(':accountNumber/reset-pin')
-  async resetPin(@Param('accountNumber') accountNumber: string) {
-    const account = await this.accountsService.resetPin(accountNumber);
+  @Get(':id/transactions')
+  async getTransactions(@Param('id') id: number) {
+    const transactions = await this.accountsService.findTransactions(id);
     return {
-      message: 'Pin has been reset successfully',
-      data: account,
+      message: 'Account has been deleted successfully',
+      data: transactions,
     };
   }
 }

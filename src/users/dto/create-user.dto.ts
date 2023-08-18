@@ -8,4 +8,5 @@ export class CreateUserDto {
   readonly phone: string;
   readonly address: string;
   readonly gender: number;
+  readonly status?: number;
 }

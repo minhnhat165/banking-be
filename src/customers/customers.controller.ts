@@ -43,6 +43,19 @@ export class CustomersController {
       data: data,
     };
   }
+  @Post('login')
+  async login(
+    @Body() loginDto: { email: string; mPass: string },
+  ): Promise<Response<Customer>> {
+    const data = await this.customersService.login(
+      loginDto.email,
+      loginDto.mPass,
+    );
+    return {
+      message: 'User has been unlocked successfully',
+      data: data,
+    };
+  }
   @Get('pin/:pin')
   async findByPin(@Param('pin') pin: string): Promise<Response<Customer>> {
     const data = await this.customersService.findOneByPin(pin);

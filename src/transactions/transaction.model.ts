@@ -1,12 +1,6 @@
-import {
-  BelongsTo,
-  Column,
-  ForeignKey,
-  Model,
-  Table,
-} from 'sequelize-typescript';
+import { Column, HasMany, Model, Table } from 'sequelize-typescript';
 
-import { Account } from 'src/accounts/account.model';
+import { TransactionDetail } from 'src/transaction-details/transaction-detail.model';
 
 @Table({
   tableName: 'Transactions',
@@ -14,12 +8,6 @@ import { Account } from 'src/accounts/account.model';
 export class Transaction extends Model {
   @Column({ primaryKey: true, autoIncrement: true })
   id: number;
-
-  @ForeignKey(() => Account)
-  @Column({ field: 'account_id' })
-  accountId: number;
-  @BelongsTo(() => Account) // Define the association to the Roles model
-  account: Account;
 
   @Column({ field: 'type' })
   type: number;
@@ -38,16 +26,6 @@ export class Transaction extends Model {
   })
   transactionDate: Date;
 
-  @Column
-  balance: number;
-
-  @ForeignKey(() => Account)
-  @Column({ field: 'bnf_account_id' })
-  bnfAccountId: number;
-  @BelongsTo(() => Account, 'bnfAccountId')
-  bnfAccount: Account;
-  @Column({
-    field: 'drcr_ind',
-  })
-  drcrInd: number;
+  @HasMany(() => TransactionDetail)
+  transactionDetails: TransactionDetail[];
 }

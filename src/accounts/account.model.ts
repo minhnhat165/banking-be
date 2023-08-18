@@ -9,8 +9,9 @@ import {
 
 import { Customer } from 'src/customers/customer.model';
 import { InterestPayment } from 'src/interest-payments/interest-payment.model';
-import { InterestRate } from 'src/interest-rates/interest-rate.model';
+import { Product } from 'src/products/product.model';
 import { Rollover } from 'src/rollovers/rollover.model';
+import { Term } from 'src/terms/terms.model';
 
 @Table({
   tableName: 'Banking_Account',
@@ -31,21 +32,26 @@ export class Account extends Model {
   status: number;
   @Column({ field: 'number' })
   number: string;
-  @Column
-  pin: string;
 
   @ForeignKey(() => Customer)
   @Column({ field: 'customer_id' })
   customerId: number;
   @BelongsTo(() => Customer)
   customer: Customer;
-  @ForeignKey(() => InterestRate)
+  @ForeignKey(() => Product)
   @Column({
-    field: 'interest_rate_id',
+    field: 'product_id',
   })
-  interestRateId: number;
-  @BelongsTo(() => InterestRate)
-  interestRate: InterestRate;
+  productId: number;
+  @BelongsTo(() => Product)
+  product: Product;
+  @ForeignKey(() => Term)
+  @Column({
+    field: 'term_id',
+  })
+  termId: number;
+  @BelongsTo(() => Term)
+  term: Term;
 
   @ForeignKey(() => InterestPayment)
   @Column({ field: 'payment_method_id' })
@@ -61,16 +67,26 @@ export class Account extends Model {
   @BelongsTo(() => Rollover)
   rollover: Rollover;
   @Column({
+    field: 'interest_rate',
+  })
+  interestRate: number;
+  @Column({
     field: 'created_date',
     type: DataType.DATE,
     defaultValue: DataType.NOW,
   })
   createdDate: Date;
-  @Column({ field: 'activated_date' })
-  activatedDate: Date;
+  @ForeignKey(() => Account)
+  @Column({ field: 'transfer_account_id' })
+  transferAccountId: number;
+  @BelongsTo(() => Account)
+  transferAccount: Account;
 
   @Column({ field: 'maturity_date' })
   maturityDate: Date;
+
+  @Column({ field: 'started_date' })
+  startedDate: Date;
 
   @Column({
     field: 'closed_date',

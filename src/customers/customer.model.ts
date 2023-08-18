@@ -29,6 +29,8 @@ export class Customer extends Model {
   pin: string;
   @Column
   gender: number;
+  @Column
+  mPass: string;
 
   @Column({ field: 'created_date' })
   createdDate: Date;

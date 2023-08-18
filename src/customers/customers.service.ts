@@ -11,12 +11,16 @@ import { PaginationParams } from 'src/common/dto/paginationParams';
 import { Pagination } from 'src/common/dto/pagination';
 import { Op } from 'sequelize';
 import * as moment from 'moment';
+import { generateNumber } from 'src/utils/generate-number';
+import * as bcrypt from 'bcrypt';
+import { MailerService } from 'src/mailer/mailer.service';
 
 @Injectable()
 export class CustomersService {
   constructor(
     @Inject('CustomerRepository')
     private readonly customerModel: typeof Customer,
+    private readonly mailService: MailerService,
   ) {}
 
   async findAll(
@@ -73,8 +77,12 @@ export class CustomersService {
       newCustomer.phone = customer.phone;
       newCustomer.address = customer.address;
       newCustomer.pin = customer.pin;
+      const mPass = generateNumber(6);
+      newCustomer.mPass = bcrypt.hashSync(mPass, 10);
       newCustomer.gender = customer.gender;
-      return await newCustomer.save();
+      const savedUser = await newCustomer.save();
+      await this.sendEmail(savedUser.email, mPass);
+      return savedUser;
     } catch (error) {
       const errorKey = error['errors'][0].validatorKey;
       if (errorKey === 'not_unique') {
@@ -82,6 +90,18 @@ export class CustomersService {
       }
       throw new Error(error);
     }
+  }
+
+  async login(email: string, mPass: string): Promise<Customer> {
+    const customer = await this.findOneByEmail(email);
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+    const isMatch = await bcrypt.compare(mPass, customer.mPass);
+    if (!isMatch) {
+      throw new BadRequestException('Invalid credentials');
+    }
+    return customer;
   }
 
   async update(
@@ -172,5 +192,14 @@ export class CustomersService {
       totalThisMonth,
       status: percent > 0 ? 1 : -1,
     };
+  }
+  async sendEmail(email: string, mPass: string): Promise<void> {
+    const subject = 'Registration';
+    const html = `<p>Your banking account has been created. Your mPass is ${mPass}.</p>`;
+    await this.mailService.sendMail({
+      to: email,
+      subject,
+      html,
+    });
   }
 }

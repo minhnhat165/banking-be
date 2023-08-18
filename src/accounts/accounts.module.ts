@@ -6,6 +6,7 @@ import { InterestRatesModule } from 'src/interest-rates/interest-rates.module';
 import { MailerModule } from 'src/mailer/mailer.module';
 import { Module } from '@nestjs/common';
 import { TermsModule } from 'src/terms/terms.module';
+import { TransactionDetailsModule } from 'src/transaction-details/transaction-details.module';
 import { TransactionsModule } from 'src/transactions/transactions.module';
 import { accountsProviders } from './accounts.providers';
 
@@ -16,6 +17,7 @@ import { accountsProviders } from './accounts.providers';
     CustomersModule,
     TransactionsModule,
     InterestRatesModule,
+    TransactionDetailsModule,
     TermsModule,
   ],
   providers: [AccountsService, ...accountsProviders],

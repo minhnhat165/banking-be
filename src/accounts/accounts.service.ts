@@ -4,30 +4,27 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import * as moment from 'moment';
+import { Op } from 'sequelize';
 import { ACCOUNT } from 'src/common/constant/account';
 import { CLIENT } from 'src/common/constant/env';
 import { TRANSACTION } from 'src/common/constant/transaction';
 import { Pagination } from 'src/common/dto/pagination';
 import { PaginationParams } from 'src/common/dto/paginationParams';
 import { CustomersService } from 'src/customers/customers.service';
-import { InterestRate } from 'src/interest-rates/interest-rate.model';
 import { MailerService } from 'src/mailer/mailer.service';
+import { TermsService } from 'src/terms/terms.service';
 import { TransactionsService } from 'src/transactions/transactions.service';
 import { Account } from './account.model';
+import { AccessAccountDto } from './dto/access-account.dto';
 import { ActivateAccountDto } from './dto/activate-account.dto';
 import { CreateAccountDto } from './dto/create-account.dto';
-import { TransactionDto } from './dto/transaction.dto';
 import { SettlementAccountDto } from './dto/settlement-account.dto';
-import { InterestRatesService } from 'src/interest-rates/interest-rates.service';
-import { AccessAccountDto } from './dto/access-account.dto';
-import { Op } from 'sequelize';
-import { TermsService } from 'src/terms/terms.service';
-import { randomUUID } from 'crypto';
+import { TransactionDto } from './dto/transaction.dto';
+import { TransactionDetailsService } from 'src/transaction-details/transaction-details.service';
 
 const otps_tmp: {
   [key: string]: { otp: string; data: CreateAccountDto };
@@ -41,7 +38,7 @@ export class AccountsService {
     private readonly mailerService: MailerService,
     private readonly customerService: CustomersService,
     private readonly transactionService: TransactionsService,
-    private readonly interestRateService: InterestRatesService,
+    private readonly transactionDetailService: TransactionDetailsService,
     private readonly termService: TermsService,
   ) {}
 
@@ -81,14 +78,7 @@ export class AccountsService {
       limit,
       where: filterObject,
       order: [['id', 'DESC']],
-      include: [
-        { all: true },
-        {
-          model: InterestRate,
-          include: ['term', 'product'],
-        },
-      ],
-      attributes: { exclude: ['pin'] },
+      include: [{ all: true }],
     });
     return {
       items: rows,
@@ -98,40 +88,26 @@ export class AccountsService {
     };
   }
 
-  async findOne(id: number, showPin = false, pin = ''): Promise<Account> {
+  async findOne(id: number, showPin = false): Promise<Account> {
     const account = await this.accountRepository.findByPk(id, {
-      include: [
-        { all: true },
-        {
-          model: InterestRate,
-          include: ['term', 'product'],
-        },
-      ],
-      attributes: { exclude: showPin ? [] : ['pin'] },
+      include: [{ all: true }],
     });
     if (!account) {
       throw new NotFoundException('Invalid account id');
     }
-    if (showPin && pin) {
-      const match = await bcrypt.compare(pin, account.pin);
-      if (!match) {
-        throw new UnauthorizedException('Invalid pin');
-      }
-    }
+    // if (showPin && pin) {
+    //   const match = await bcrypt.compare(pin, account.pin);
+    //   if (!match) {
+    //     throw new UnauthorizedException('Invalid pin');
+    //   }
+    // }
     return account;
   }
 
   async findByNumber(number: string): Promise<Account> {
     const account = await this.accountRepository.findOne<Account>({
       where: { number },
-      include: [
-        { all: true },
-        {
-          model: InterestRate,
-          include: ['term', 'product'],
-        },
-      ],
-      attributes: { exclude: ['pin'] },
+      include: [{ all: true }],
     });
 
     if (!account) {
@@ -147,21 +123,15 @@ export class AccountsService {
   ): Promise<Account> {
     const account = await this.accountRepository.findOne<Account>({
       where: { number: accessAccountDto.number },
-      include: [
-        { all: true },
-        {
-          model: InterestRate,
-          include: ['term', 'product'],
-        },
-      ],
+      include: [{ all: true }],
     });
 
     if (!account) {
       throw new NotFoundException("Number or pin doesn't match");
     }
-    if (!(await bcrypt.compare(accessAccountDto.pin.toString(), account.pin))) {
-      throw new UnauthorizedException("Number or pin doesn't match");
-    }
+    // if (!(await bcrypt.compare(accessAccountDto.pin.toString(), account.pin))) {
+    //   throw new UnauthorizedException("Number or pin doesn't match");
+    // }
 
     if (isCheckTypeChecking && account.type !== ACCOUNT.TYPE.CHECKING) {
       throw new BadRequestException('Must be checking account');
@@ -187,22 +157,34 @@ export class AccountsService {
     }
     newAccount.type = account.type;
     newAccount.principal = account.principal;
-    const pin = this.generateNumber(6);
-    newAccount.pin = await bcrypt.hash(pin, 10);
     newAccount.number = await this.generateAccountNumber();
-    newAccount.status = ACCOUNT.STATUS.INACTIVATED;
+    newAccount.status = ACCOUNT.STATUS.ACTIVATED;
+    newAccount.startedDate = new Date();
     if (account.type === ACCOUNT.TYPE.DEPOSIT) {
       newAccount.rolloverId = account.rolloverId;
-      newAccount.interestRateId = account.interestRateId;
+      newAccount.productId = account.productId;
+      newAccount.termId = account.termId;
+      newAccount.interestRate = account.interestRate;
       newAccount.paymentMethodId = account.paymentMethodId;
+      if (account.rolloverId === ACCOUNT.ROLLOVER.TRANSFER_TO_ACCOUNT) {
+        newAccount.transferAccountId = account.transferAccountId;
+      }
     }
 
     const savedAccount = await newAccount.save();
-    await this.sendActivationEmail({
-      customerId: newAccount.customerId,
-      number: newAccount.number,
-      pin,
+    await this.deposit({
+      accountId: savedAccount.id,
+      amount: savedAccount.principal,
     });
+    if (
+      savedAccount?.paymentMethodId === ACCOUNT.INTEREST_PAYMENT_METHOD.PREPAID
+    ) {
+      await this.paymentInterest({
+        accountId: savedAccount.id,
+        amount: await this.calPrepaidInterest(savedAccount.id),
+      });
+    }
+
     return await this.findOne(savedAccount.id);
   }
 
@@ -214,13 +196,11 @@ export class AccountsService {
     newAccount.customerId = account.customerId;
     newAccount.type = account.type;
     newAccount.principal = principal;
-    newAccount.pin = account.pin;
     newAccount.number = await this.generateAccountNumber();
     newAccount.status = ACCOUNT.STATUS.ACTIVATED;
     newAccount.rolloverId = account.rolloverId;
-    newAccount.interestRateId = account.interestRateId;
+    newAccount.interestRate = account.interestRate;
     newAccount.paymentMethodId = account.paymentMethodId;
-    newAccount.activatedDate = new Date();
     const savedAccount = await newAccount.save();
     await this.deposit({
       accountId: savedAccount.id,
@@ -247,7 +227,6 @@ export class AccountsService {
     updateAccountDto: Partial<CreateAccountDto>,
   ): Promise<Account> {
     const account = await this.findOne(id);
-    let newPin = null;
     if (account.status !== ACCOUNT.STATUS.INACTIVATED) {
       throw new ForbiddenException('Cannot update activated account');
     }
@@ -260,28 +239,16 @@ export class AccountsService {
       updateAccountDto.customerId = customer.id;
     }
 
-    if (
-      updateAccountDto?.customerId &&
-      updateAccountDto?.customerId?.toString() !== account.customerId.toString()
-    ) {
-      newPin = this.generateNumber(6);
-      await this.sendActivationEmail({
-        customerId: updateAccountDto.customerId,
-        number: account.number,
-        pin: newPin,
-      });
-    }
-
     if (parseInt(updateAccountDto.type.toString()) === ACCOUNT.TYPE.CHECKING) {
       updateAccountDto.rolloverId = null;
-      updateAccountDto.interestRateId = null;
+      updateAccountDto.interestRate = null;
       updateAccountDto.paymentMethodId = null;
     }
 
-    await account.update({
-      ...updateAccountDto,
-      pin: newPin ? await bcrypt.hash(newPin, 10) : account.pin,
-    });
+    // await account.update({
+    //   ...updateAccountDto,
+    //   pin: newPin ? await bcrypt.hash(newPin, 10) : account.pin,
+    // });
     return account;
   }
   async updateBalance(accountId: number, amount: number) {
@@ -354,17 +321,7 @@ export class AccountsService {
     if (account.status !== ACCOUNT.STATUS.INACTIVATED) {
       throw new BadRequestException('Account already activated');
     }
-
-    if (bcrypt.compareSync(activateAccountDto.newPin, account.pin)) {
-      throw new BadRequestException('New pin cannot be the same as old pin');
-    }
-
-    if (bcrypt.compareSync(activateAccountDto.pin, account.pin) === false) {
-      throw new UnauthorizedException('Invalid pin');
-    }
-    account.pin = await bcrypt.hash(activateAccountDto.newPin, 10);
     account.status = ACCOUNT.STATUS.ACTIVATED;
-    account.activatedDate = new Date();
     const activatedAccount = await account.save();
     await this.deposit({
       accountId: activatedAccount.id,
@@ -382,34 +339,34 @@ export class AccountsService {
     return this.findOne(activatedAccount.id);
   }
 
-  async changePin(changePinDto: ActivateAccountDto): Promise<Account> {
-    const account = await this.findByNumber(changePinDto.number);
-    if (account.status === ACCOUNT.STATUS.INACTIVATED) {
-      throw new BadRequestException('Account not activated');
-    }
-    if (bcrypt.compareSync(changePinDto.pin, account.pin) === false) {
-      throw new UnauthorizedException('Invalid pin');
-    }
-    account.pin = await bcrypt.hash(changePinDto.newPin, 10);
-    await account.save();
-    return this.findOne(account.id);
-  }
+  // async changePin(changePinDto: ActivateAccountDto): Promise<Account> {
+  //   const account = await this.findByNumber(changePinDto.number);
+  //   if (account.status === ACCOUNT.STATUS.INACTIVATED) {
+  //     throw new BadRequestException('Account not activated');
+  //   }
+  //   if (bcrypt.compareSync(changePinDto.pin, account.pin) === false) {
+  //     throw new UnauthorizedException('Invalid pin');
+  //   }
+  //   account.pin = await bcrypt.hash(changePinDto.newPin, 10);
+  //   await account.save();
+  //   return this.findOne(account.id);
+  // }
 
-  async resetPin(accountNumber: string): Promise<Account> {
-    const account = await this.findByNumber(accountNumber);
-    if (account.status === ACCOUNT.STATUS.INACTIVATED) {
-      throw new BadRequestException('Account not activated');
-    }
-    const pin = this.generateNumber(6);
-    account.pin = await bcrypt.hash(pin, 10);
-    await account.save();
-    await this.sendResetPinEmail({
-      customerId: account.customerId,
-      number: account.number,
-      pin,
-    });
-    return this.findOne(account.id);
-  }
+  // async resetPin(accountNumber: string): Promise<Account> {
+  //   const account = await this.findByNumber(accountNumber);
+  //   if (account.status === ACCOUNT.STATUS.INACTIVATED) {
+  //     throw new BadRequestException('Account not activated');
+  //   }
+  //   const pin = this.generateNumber(6);
+  //   account.pin = await bcrypt.hash(pin, 10);
+  //   await account.save();
+  //   await this.sendResetPinEmail({
+  //     customerId: account.customerId,
+  //     number: account.number,
+  //     pin,
+  //   });
+  //   return this.findOne(account.id);
+  // }
 
   async sendResetPinEmail(account: {
     customerId: number;
@@ -432,39 +389,69 @@ export class AccountsService {
     if (account.status !== ACCOUNT.STATUS.ACTIVATED) {
       throw new BadRequestException('Account not activated');
     }
-    account.balance += depositDto.amount;
-    await account.save();
-    await this.transactionService.create({
-      accountId: depositDto.accountId,
+    const newTransaction = await this.transactionService.create({
       amount: depositDto.amount,
       description: 'Nạp tiền',
       type: TRANSACTION.TYPE.DEPOSIT,
-      balance: account.balance,
     });
+    await this.transactionDetailService.create({
+      transactionId: newTransaction.id,
+      accountId: depositDto.accountId,
+      balance: account.balance,
+      isIncrease: true,
+      accountNumber: account.number,
+      amount: depositDto.amount,
+      description: 'Nạp tiền',
+      email: account.customer.email,
+    });
+    account.balance += depositDto.amount;
+    await account.save();
   }
 
   async transfer(transactionDto: TransactionDto): Promise<void> {
     const account = await this.findOne(transactionDto.accountId);
+    const bnfAccount = await this.findOne(transactionDto.bnfAccountId);
     if (account.status !== ACCOUNT.STATUS.ACTIVATED) {
       throw new BadRequestException('Account not activated');
     }
     if (account.balance < transactionDto.amount) {
       throw new BadRequestException('Not enough balance');
     }
-    account.balance -= transactionDto.amount;
-    await account.save();
-    await this.transactionService.create({
-      accountId: transactionDto.accountId,
-      amount: -transactionDto.amount,
+    const newTransaction = await this.transactionService.create({
+      amount: transactionDto.amount,
       description: 'Chuyển tiền',
       type: TRANSACTION.TYPE.TRANSFER,
-      balance: account.balance,
-      bnfAccountId: transactionDto.bnfAccountId,
     });
-    await this.updateBalance(
-      transactionDto.bnfAccountId,
-      transactionDto.amount,
-    );
+
+    await Promise.all([
+      this.transactionDetailService.create({
+        transactionId: newTransaction.id,
+        accountId: transactionDto.accountId,
+        balance: account.balance,
+        isIncrease: false,
+        accountNumber: account.number,
+        amount: transactionDto.amount,
+        description: 'Chuyển tiền',
+        email: account.customer.email,
+        fee: 0,
+      }),
+      this.transactionDetailService.create({
+        transactionId: newTransaction.id,
+        accountId: transactionDto.bnfAccountId,
+        balance: bnfAccount.balance,
+        isIncrease: true,
+        accountNumber: bnfAccount.number,
+        amount: transactionDto.amount,
+        description: 'Nhận tiền',
+        email: bnfAccount.customer.email,
+        fee: 0,
+      }),
+    ]);
+
+    await Promise.all([
+      this.updateBalance(transactionDto.accountId, -transactionDto.amount),
+      this.updateBalance(transactionDto.bnfAccountId, transactionDto.amount),
+    ]);
   }
 
   async paymentInterest(transaction: TransactionDto): Promise<void> {
@@ -475,28 +462,27 @@ export class AccountsService {
     if (account.type !== ACCOUNT.TYPE.DEPOSIT) {
       throw new BadRequestException('Invalid account type');
     }
-    account.balance += transaction.amount;
-    await account.save();
-    await this.transactionService.create({
-      accountId: transaction.accountId,
+
+    const newTransaction = await this.transactionService.create({
       amount: transaction.amount,
       description: 'Lãnh lãi',
       type: TRANSACTION.TYPE.INTEREST,
-      balance: account.balance,
     });
+    await this.transactionDetailService.create({
+      transactionId: newTransaction.id,
+      accountId: transaction.accountId,
+      balance: account.balance,
+      isIncrease: true,
+      accountNumber: account.number,
+      amount: transaction.amount,
+      description: 'Lãnh lãi',
+      email: account.customer.email,
+    });
+    await this.updateBalance(transaction.accountId, transaction.amount);
   }
 
-  async settle(
-    settlementAccountDto: SettlementAccountDto,
-    client = false,
-  ): Promise<Account> {
-    const account = client
-      ? await this.findOne(
-          settlementAccountDto.accountId,
-          true,
-          settlementAccountDto.pin,
-        )
-      : await this.findOne(settlementAccountDto.accountId, true);
+  async settle(settlementAccountDto: SettlementAccountDto): Promise<Account> {
+    const account = await this.findOne(settlementAccountDto.accountId, true);
     if (account.status === ACCOUNT.STATUS.INACTIVATED) {
       throw new BadRequestException('Account not activated');
     }
@@ -507,103 +493,130 @@ export class AccountsService {
     if (account.type !== ACCOUNT.TYPE.DEPOSIT) {
       throw new BadRequestException('Invalid account type');
     }
-    let description = '';
 
-    const term = account.interestRate.term.value;
-
-    const activeDate = account.activatedDate;
-    const maturityDate = moment(activeDate).add(term, 'months');
+    ///-------------------------
+    const term = account.term.value;
+    const maturityDate = moment(account.startedDate).add(term, 'months');
     const today = moment();
     const isMaturity = today.isSameOrAfter(maturityDate);
-
     let debit = 0;
-
+    let total = account.balance;
     if (!isMaturity) {
       const interestRates = await this.termService.findNoneTerm();
 
       const interestRate = interestRates[0]?.value || 0.1;
 
-      const months = today.diff(activeDate, 'months');
+      const days = today.diff(account.startedDate, 'days');
+
+      const interest = this.calEndOfTermInterest({
+        balance: account.principal,
+        days,
+        interestRate: interestRate,
+      });
+
+      total = account.principal + interest;
 
       switch (account.paymentMethodId) {
         case ACCOUNT.INTEREST_PAYMENT_METHOD.PREPAID:
-          debit = account.balance - account.principal;
-          account.balance = account.principal;
-          break;
+          debit = account.balance - account.principal - interest;
         case ACCOUNT.INTEREST_PAYMENT_METHOD.REGULAR:
-          let newBalance = account.principal;
-          for (let i = 0; i < months; i++) {
-            newBalance += newBalance * (interestRate / 100);
+          const firstInterest = account.balance - account.principal;
+          if (firstInterest > interest) {
+            debit = firstInterest - interest;
           }
-          debit = account.balance - newBalance;
-          account.balance = newBalance;
-          break;
-        case ACCOUNT.INTEREST_PAYMENT_METHOD.END_OF_TERM:
-          const interest = this.calEndOfTermInterest({
-            balance: account.principal,
-            months,
-            interestRate: interestRate,
-          });
-          account.balance = account.principal + interest;
           break;
         default:
           break;
       }
+      account.rolloverId = settlementAccountDto.rolloverId;
+      account.interestRate = interestRate;
+      account.transferAccountId = settlementAccountDto.transferAccountId;
     }
+    let description = '';
 
-    switch (settlementAccountDto.rolloverId) {
+    switch (account.rolloverId) {
       case ACCOUNT.ROLLOVER.FULL_SETTLEMENT:
         description = 'Tất toán cả gốc và lãi';
+        account.status = ACCOUNT.STATUS.CLOSED;
+        account.closedDate = new Date();
         break;
       case ACCOUNT.ROLLOVER.RENEWAL_FULL:
         description = 'Tái ký toàn bộ gốc và lãi';
-        await this.createRolloverAccount(account, account.balance);
         break;
       case ACCOUNT.ROLLOVER.RENEWAL_PRINCIPAL:
         description = 'Tái ký gốc';
-        await this.createRolloverAccount(account, account.principal);
         break;
       case ACCOUNT.ROLLOVER.TRANSFER_TO_ACCOUNT:
-        const bnfAccount = await this.updateBalance(
-          settlementAccountDto.bnfAccountId,
-          account.balance,
-        );
-        description = `Tất toán vào tai khoản thanh toán ${bnfAccount.number}`;
+        const transferAccount = await this.findOne(account.transferAccountId);
+        description = `Tất toán vào tai khoản thanh toán ${transferAccount.number}`;
+        account.status = ACCOUNT.STATUS.CLOSED;
+        account.closedDate = new Date();
         break;
       default:
         break;
     }
-
-    await this.transactionService.create({
-      accountId: account.id,
-      amount: -account.balance,
+    const newTransaction = await this.transactionService.create({
+      amount: total,
       description,
       type: TRANSACTION.TYPE.SETTLEMENT,
-      balance: 0,
-      drcrInd: debit,
-      bnfAccountId: settlementAccountDto.bnfAccountId,
+    });
+    await this.transactionDetailService.create({
+      transactionId: newTransaction.id,
+      accountId: settlementAccountDto.accountId,
+      balance: account.balance,
+      isIncrease: false,
+      fee: debit,
+      accountNumber: account.number,
+      amount: total,
+      description,
+      email: account.customer.email,
     });
 
-    account.status = ACCOUNT.STATUS.CLOSED;
-    account.closedDate = new Date();
-    account.balance = 0;
-    account.rolloverId = settlementAccountDto.rolloverId;
-    await account.save();
+    if (account.rolloverId === ACCOUNT.ROLLOVER.TRANSFER_TO_ACCOUNT) {
+      const transferAccount = await this.findOne(account.transferAccountId);
+      await this.transactionDetailService.create({
+        transactionId: newTransaction.id,
+        accountId: account.transferAccountId,
+        balance: transferAccount.balance,
+        isIncrease: true,
+        fee: 0,
+        accountNumber: transferAccount.number,
+        amount: total,
+        description,
+        email: transferAccount.customer.email,
+      });
+      await this.updateBalance(account.transferAccountId, total);
+    }
+
+    if (
+      account.rolloverId === ACCOUNT.ROLLOVER.RENEWAL_FULL ||
+      account.rolloverId === ACCOUNT.ROLLOVER.RENEWAL_PRINCIPAL
+    ) {
+      await this.renewalAccount(account.id);
+    } else {
+      account.balance = 0;
+      await account.save();
+    }
     return this.findOne(account.id);
   }
 
   async calPrepaidInterest(accountId: number) {
     const account = await this.findOne(accountId);
-    const months = account.interestRate.term.value;
-    const interestRate = account.interestRate.value;
+    const startDate = moment(account.startedDate);
+    const endDate = moment(account.startedDate).add(
+      account.term.value,
+      'months',
+    );
+    const numberOfDays = endDate.diff(startDate, 'days');
+    const interestRate = account.interestRate;
     const principal = account.principal;
-    const interest = (principal * interestRate * months) / (12 * 100);
+    const interest = (principal * interestRate * numberOfDays) / (365 * 100);
     return interest;
   }
 
   async calMonthInterest(accountId: number) {
     const account = await this.findOne(accountId);
-    const interestRate = account.interestRate.value;
+    const interestRate = account.interestRate;
     const balance = account.balance;
     const interest = (balance * interestRate) / (12 * 100);
     return interest;
@@ -612,45 +625,53 @@ export class AccountsService {
   calEndOfTermInterest({
     interestRate,
     balance,
-    months,
+    days = 0,
   }: {
     interestRate: number;
     balance: number;
-    months: number;
+    days?: number;
   }) {
-    const interest = (balance * interestRate * months) / (12 * 100);
+    const interest = (balance * interestRate * days) / (365 * 100);
     return interest;
   }
 
   async payInterest(accountId: number) {
     const account = await this.findOne(accountId);
-    const activatedDate = account.activatedDate;
-    const currentDate = moment();
-    let payDate = moment(activatedDate);
-    if (account.paymentMethodId === ACCOUNT.INTEREST_PAYMENT_METHOD.REGULAR) {
-      const currentMonth = moment().diff(activatedDate, 'months');
-
-      payDate = moment(activatedDate).add(currentMonth, 'M');
-    } else {
-      payDate = moment(activatedDate).add(
-        account.interestRate.term.value,
-        'months',
-      );
+    if (account.paymentMethodId === ACCOUNT.INTEREST_PAYMENT_METHOD.PREPAID) {
+      return;
     }
-
+    const currentDate = moment();
+    let payDate = moment(account.startedDate);
+    if (account.paymentMethodId === ACCOUNT.INTEREST_PAYMENT_METHOD.REGULAR) {
+      const currentMonth = moment().diff(account.startedDate, 'months');
+      if (currentMonth === 0) {
+        return;
+      }
+      payDate = moment(account.startedDate).add(currentMonth, 'M');
+    } else if (
+      account.paymentMethodId === ACCOUNT.INTEREST_PAYMENT_METHOD.END_OF_TERM
+    ) {
+      payDate = moment(account.startedDate).add(account.term.value, 'months');
+    }
     const isPayDate = currentDate.isSame(payDate, 'day');
     if (isPayDate) {
       const filter = {
         transactionDate: new Date(),
-        accountId: account.id,
         type: TRANSACTION.TYPE.INTEREST,
       };
       const data = await this.transactionService.findAll(filter, true);
-      console.log(
-        '🚀 ~ file: accounts.service.ts:535 ~ AccountsService ~ payInterest ~ account.interestRate.value:',
-        account.interestRate.value,
-      );
-      if (data.items.length === 0) {
+      let isHaveTransaction = false;
+      for (const item of data.items) {
+        const transactionDetails = item.transactionDetails;
+        for (const transactionDetail of transactionDetails) {
+          if (transactionDetail.accountId === accountId) {
+            isHaveTransaction = true;
+            break;
+          }
+        }
+      }
+
+      if (!isHaveTransaction) {
         let interest = 0;
 
         switch (account.paymentMethodId) {
@@ -659,9 +680,9 @@ export class AccountsService {
             break;
           case ACCOUNT.INTEREST_PAYMENT_METHOD.END_OF_TERM:
             interest = this.calEndOfTermInterest({
-              interestRate: account.interestRate.value,
+              interestRate: account.interestRate,
               balance: account.principal,
-              months: account.interestRate.term.value,
+              days: currentDate.diff(account.startedDate, 'days'),
             });
             break;
           default:
@@ -675,7 +696,7 @@ export class AccountsService {
     }
   }
 
-  @Cron(CronExpression.EVERY_11_HOURS)
+  @Cron(CronExpression.EVERY_10_SECONDS)
   async payInterestTask() {
     const accounts = await this.accountRepository.findAll({
       where: {
@@ -700,16 +721,16 @@ export class AccountsService {
 
   async updateMaturity(accountId: number) {
     const account = await this.findOne(accountId);
-    const activatedDate = account.activatedDate;
-    const maturityDate = moment(activatedDate).add(
-      account.interestRate.term.value,
+    const maturityDate = moment(account.startedDate).add(
+      account.term.value,
       'months',
     );
     const today = moment();
     const isMaturity = today.isSameOrAfter(maturityDate);
     if (isMaturity) {
-      account.status = ACCOUNT.STATUS.MATURITY;
-      await account.save();
+      await this.settle({
+        accountId: account.id,
+      });
     }
   }
 
@@ -771,13 +792,64 @@ export class AccountsService {
     };
   }
 
+  async renewalAccount(accountId: number) {
+    const account = await this.findOne(accountId);
+    switch (account.rolloverId) {
+      case ACCOUNT.ROLLOVER.RENEWAL_FULL:
+        const newTransaction = await this.transactionService.create({
+          amount: account.balance,
+          type: TRANSACTION.TYPE.RENEWAL,
+          description: 'Renewal account',
+        });
+        await this.transactionDetailService.create({
+          transactionId: newTransaction.id,
+          accountId: account.id,
+          isIncrease: true,
+          balance: account.balance,
+          accountNumber: account.number,
+          amount: account.balance,
+          description: 'Renewal account',
+          email: account.customer.email,
+          fee: 0,
+        });
+        account.principal = account.balance;
+        break;
+      case ACCOUNT.ROLLOVER.RENEWAL_PRINCIPAL:
+        const newTransaction2 = await this.transactionService.create({
+          amount: account.principal,
+          type: TRANSACTION.TYPE.RENEWAL,
+          description: 'Renewal account',
+        });
+        await this.transactionDetailService.create({
+          transactionId: newTransaction2.id,
+          accountId: account.id,
+          isIncrease: true,
+          balance: account.balance,
+          accountNumber: account.number,
+          amount: account.principal,
+          description: 'Renewal account',
+          email: account.customer.email,
+          fee: 0,
+        });
+        account.balance = account.principal;
+        break;
+      default:
+        break;
+    }
+    account.status = ACCOUNT.STATUS.ACTIVATED;
+    account.startedDate = new Date();
+    await account.save();
+    if (account?.paymentMethodId === ACCOUNT.INTEREST_PAYMENT_METHOD.PREPAID) {
+      await this.paymentInterest({
+        accountId: account.id,
+        amount: await this.calPrepaidInterest(account.id),
+      });
+    }
+  }
+
   async register(account: CreateAccountDto): Promise<{
     transactionId: string;
   }> {
-    console.log(
-      '🚀 ~ file: accounts.service.ts ~ line 100 ~ AccountsService ~ register ~ account',
-      account.sourceAccountEmail,
-    );
     const opt = this.generateNumber(6);
     const transactionId = randomUUID();
     otps_tmp[transactionId] = {
@@ -800,7 +872,6 @@ export class AccountsService {
     if (data.otp !== otp.toString()) {
       throw new BadRequestException('Invalid OTP');
     }
-    console.log('🚀 ~ file: accounts.service.ts ~ line 127 ~ otp', data);
     const account = data.data;
     const newAccount = new Account();
     if (account.customerId) {
@@ -815,15 +886,18 @@ export class AccountsService {
 
     newAccount.type = account.type;
     newAccount.principal = account.principal;
-    const pin = this.generateNumber(6);
-    newAccount.pin = await bcrypt.hash(pin, 10);
     newAccount.number = await this.generateAccountNumber();
     newAccount.status = ACCOUNT.STATUS.ACTIVATED;
-    newAccount.activatedDate = new Date();
+    newAccount.startedDate = new Date();
     if (account.type === ACCOUNT.TYPE.DEPOSIT) {
       newAccount.rolloverId = account.rolloverId;
-      newAccount.interestRateId = account.interestRateId;
+      newAccount.productId = account.productId;
+      newAccount.termId = account.termId;
+      newAccount.interestRate = account.interestRate;
       newAccount.paymentMethodId = account.paymentMethodId;
+      if (account.rolloverId === ACCOUNT.ROLLOVER.TRANSFER_TO_ACCOUNT) {
+        newAccount.transferAccountId = account.transferAccountId;
+      }
     }
     const savedAccount = await newAccount.save();
     await this.transfer({
@@ -839,26 +913,39 @@ export class AccountsService {
         amount: await this.calPrepaidInterest(savedAccount.id),
       });
     }
-    await this.sendRegisterEmail({
-      customerId: savedAccount.customerId,
-      number: savedAccount.number,
-      pin,
-    });
     return await this.findOne(savedAccount.id);
   }
-  async sendRegisterEmail(account: {
-    customerId: number;
-    number: string;
-    pin: string;
-  }): Promise<void> {
-    const email = (await this.customerService.findOne(account.customerId))
-      .email;
-    const subject = 'Register account successfully';
-    const html = ` Your new account number is ${account.number}  pin is ${account.pin}`;
-    await this.mailerService.sendMail({
-      to: email,
-      subject,
-      html,
+
+  async findTransactions(accountId: number) {
+    const transactionDetails =
+      await this.transactionDetailService.findAllByAccountId(accountId);
+    const transactionIds = transactionDetails.map(
+      (detail) => detail.transactionId,
+    );
+    return await this.transactionService.findByIds(transactionIds);
+  }
+
+  async depositAccount(accountId: number, amount: number) {
+    const account = await this.findOne(accountId);
+    await this.deposit({
+      accountId: account.id,
+      amount,
     });
+    if (account?.paymentMethodId === ACCOUNT.INTEREST_PAYMENT_METHOD.PREPAID) {
+      const startDate = moment();
+      const endDate = moment(account.startedDate).add(
+        account.term.value,
+        'months',
+      );
+      const numberOfDays = endDate.diff(startDate, 'days');
+      const interestRate = account.interestRate;
+      const interest = (amount * interestRate * numberOfDays) / (365 * 100);
+      await this.paymentInterest({
+        accountId: account.id,
+        amount: interest,
+      });
+    }
+    account.principal += amount;
+    await account.save();
   }
 }

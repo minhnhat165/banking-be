@@ -50,7 +50,4 @@ export class InterestRate extends Model {
   createdBy: number;
   @BelongsTo(() => User)
   user: User;
-
-  @HasMany(() => Account)
-  accounts: Account[];
 }

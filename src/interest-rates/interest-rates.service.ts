@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -54,7 +53,6 @@ export class InterestRatesService {
   async findOne(id: number, includeAccount = false): Promise<InterestRate> {
     const existingInterestRate = await this.interestRateModel.findByPk(id, {
       include: [
-        'accounts',
         'product',
         'term',
         {
@@ -124,11 +122,6 @@ export class InterestRatesService {
   ): Promise<InterestRate> {
     const updateInterestRate = await this.findOne(id, true);
 
-    if (updateInterestRate.accounts.length > 0) {
-      throw new ForbiddenException(
-        'Cannot update because this interest rate is being used',
-      );
-    }
     const [_, [updatedInterestRate]] = await this.interestRateModel.update(
       { ...interestRate },
       { where: { id }, returning: true },
@@ -150,7 +143,7 @@ export class InterestRatesService {
     }
   }
 
-  @Cron(CronExpression.EVERY_10_HOURS)
+  @Cron(CronExpression.EVERY_10_SECONDS)
   async updateStatusInterestRate() {
     const interestRates = await this.interestRateModel.findAll({
       where: {

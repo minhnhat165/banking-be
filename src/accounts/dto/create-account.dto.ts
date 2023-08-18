@@ -5,7 +5,11 @@ export class CreateAccountDto {
   @Transform(({ value }) => parseInt(value))
   principal: number;
   @Transform(({ value }) => parseInt(value))
-  interestRateId: number;
+  productId: number;
+  @Transform(({ value }) => parseInt(value))
+  termId: number;
+  @Transform(({ value }) => parseInt(value))
+  interestRate: number;
   @Transform(({ value }) => parseInt(value))
   paymentMethodId: number;
   @Transform(({ value }) => parseInt(value))
@@ -20,4 +24,6 @@ export class CreateAccountDto {
   sourceAccountId?: number;
   @Transform(({ value }) => parseInt(value))
   sourceAccountNumber?: number;
+  @Transform(({ value }) => parseInt(value))
+  transferAccountId?: number;
 }

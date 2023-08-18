@@ -99,10 +99,7 @@ export class UsersService {
       newUser.password = await bcrypt.hash(user.password, 10);
     } else {
       const dob = moment(user.dob);
-      const password =
-        dob.get('date').toString() +
-        dob.get('month').toString() +
-        dob.get('year').toString();
+      const password = dob.format('DDMMYYYY');
       newUser.password = await bcrypt.hash(password, 10);
     }
     newUser.firstName = user.firstName;
@@ -111,6 +108,7 @@ export class UsersService {
     newUser.phone = user.phone;
     newUser.address = user.address;
     newUser.avatar = generateAvatar(user.firstName + ' ' + user.lastName);
+    newUser.status = user?.status || USER.STATUS.INACTIVE;
     return newUser.save();
   }
 

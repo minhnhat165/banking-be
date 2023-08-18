@@ -19,6 +19,7 @@ import { TermsModule } from './terms/terms.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { UserPermissionsModule } from './user-permissions/user-permissions.module';
 import { UsersModule } from './users/users.module';
+import { TransactionDetailsModule } from './transaction-details/transaction-details.module';
 import configuration from './common/constant/env';
 
 @Module({
@@ -43,6 +44,7 @@ import configuration from './common/constant/env';
     ScheduleModule.forRoot(),
     UserPermissionsModule,
     EventsModule,
+    TransactionDetailsModule,
   ],
   controllers: [AppController],
   providers: [AppService, EventsGateway],

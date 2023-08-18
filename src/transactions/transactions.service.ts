@@ -25,18 +25,10 @@ export class TransactionsService {
     if (filterKeys.includes('q')) {
       filterObject = {
         [Op.or]: {
-          '$account.number$': {
-            [Op.like]: `%${filter.q}%`,
-          },
-          '$bnfAccount.number$': {
-            [Op.like]: `%${filter.q}%`,
-          },
           description: {
             [Op.like]: `%${filter.q}%`,
           },
-          balance: {
-            [Op.like]: `%${filter.q}%`,
-          },
+
           amount: {
             [Op.like]: `%${filter.q}%`,
           },
@@ -52,7 +44,7 @@ export class TransactionsService {
 
     const query: Omit<FindAndCountOptions<Attributes<Transaction>>, 'group'> = {
       where: filterObject,
-      include: ['account', 'bnfAccount'],
+      include: ['transactionDetails'],
       order: [['id', 'DESC']],
     };
 
@@ -72,20 +64,25 @@ export class TransactionsService {
   async findById(id: number): Promise<Transaction> {
     return this.transactionModel.findByPk(id);
   }
+  async findByIds(ids: number[]): Promise<Transaction[]> {
+    return this.transactionModel.findAll({
+      where: {
+        id: {
+          [Op.in]: ids,
+        },
+      },
+      include: ['transactionDetails'],
+      order: [['id', 'DESC']],
+    });
+  }
 
   async create(transaction: CreateTransactionDto): Promise<Transaction> {
     const newTransaction = new Transaction();
-    newTransaction.accountId = transaction.accountId;
     newTransaction.amount = transaction.amount;
     newTransaction.type = transaction.type;
     newTransaction.description = transaction.description;
     newTransaction.status = 1;
     newTransaction.transactionDate = new Date();
-    newTransaction.balance = transaction.balance;
-    newTransaction.drcrInd = transaction.drcrInd || 0;
-    if (transaction.bnfAccountId) {
-      newTransaction.bnfAccountId = transaction.bnfAccountId;
-    }
     return newTransaction.save();
   }
 

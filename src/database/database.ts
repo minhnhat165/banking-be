@@ -9,6 +9,7 @@ import { Rollover } from 'src/rollovers/rollover.model';
 import { Sequelize } from 'sequelize-typescript';
 import { Term } from 'src/terms/terms.model';
 import { Transaction } from 'src/transactions/transaction.model';
+import { TransactionDetail } from 'src/transaction-details/transaction-detail.model';
 import { User } from 'src/users/user.model';
 import { UserPermission } from 'src/user-permissions/user-permission.model';
 
@@ -48,6 +49,7 @@ export const databaseProviders = [
         Transaction,
         Permission,
         UserPermission,
+        TransactionDetail,
       ]);
 
       // await sequelize.sync();
